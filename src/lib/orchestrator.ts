@@ -1251,93 +1251,10 @@ async function applyHfEnrichment(models: AIModel[], enrichment: Map<string, HFMo
 
 
 
-// --- 8. Helicone (GitHub-hosted) --------------------------------
-
-async function fetchHelicone(): Promise<SourceHealth> {
-  // Helicone publishes some public mirror data on GitHub
-  const candidates = [
-    "https://raw.githubusercontent.com/Helicone/helicone/main/README.md",
-    "https://api.github.com/repos/Helicone/helicone",
-  ];
-  const start = Date.now();
-  for (const url of candidates) {
-    try {
-      const res = await fetchWithRetry(url, { retries: 0 });
-      if (url.includes("api.github.com")) {
-        const json: any = await res.json();
-        return {
-          id: "helicone",
-          name: "Helicone (GitHub)",
-          status: "green",
-          latencyMs: Date.now() - start,
-          lastSync: new Date().toISOString(),
-          note: `Repo ${json.full_name} · ★${json.stargazers_count ?? 0}`,
-        };
-      }
-      return {
-        id: "helicone",
-        name: "Helicone (GitHub)",
-        status: "green",
-        latencyMs: Date.now() - start,
-        lastSync: new Date().toISOString(),
-        note: "README mirror reached",
-      };
-    } catch {
-      // try next candidate
-    }
-  }
-  return {
-    id: "helicone",
-    name: "Helicone (GitHub)",
-    status: "yellow",
-    latencyMs: Date.now() - start,
-    lastSync: new Date().toISOString(),
-    note: "No se pudo alcanzar el mirror de Helicone",
-  };
-}
-
-// --- 9. Groq Status ---------------------------------------------
-
-async function fetchGroqStatus(): Promise<SourceHealth> {
-  const url = "https://groqstatus.com/api/v2/status.json";
-  const start = Date.now();
-  try {
-    const res = await fetchWithRetry(url);
-    const json: any = await res.json();
-    // The status field can be a string ("operational") or an object with
-    // nested fields. Normalize to a string to avoid "[object Object]".
-    let statusStr = "operational";
-    const raw = json.status ?? json.overall;
-    if (typeof raw === "string") {
-      statusStr = raw;
-    } else if (raw && typeof raw === "object") {
-      // Try common nested fields: status.overall, status.description, status.indicator
-      statusStr =
-        (raw as any).overall ??
-        (raw as any).description ??
-        (raw as any).indicator ??
-        JSON.stringify(raw).slice(0, 60);
-    }
-    const isGreen = /operational|ok|up|running/i.test(statusStr);
-    return {
-      id: "groq-status",
-      name: "Groq Status",
-      status: isGreen ? "green" : "yellow",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `Overall: ${statusStr}`,
-    };
-  } catch (err) {
-    return {
-      id: "groq-status",
-      name: "Groq Status",
-      status: "yellow",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `Error: ${(err as Error).message}`,
-    };
-  }
-}
+// --- Sources 8 (Helicone) and 9 (Groq Status) removed 2026-07-30 ---
+// Helicone: GitHub ping returning star count — no model data, no enrichment.
+// Groq Status: uptime check — transient state, never affected any AIModel field or ranking.
+// Both were pure SourceHealth badge vanity.
 
 // --- 10. OpenRouter health check --------------------------------
 
@@ -2059,17 +1976,15 @@ export async function forceRefreshDashboardData(
 }
 
 async function runAllFetchers(customKey?: string): Promise<DashboardData> {
-  // Fire all fetchers in parallel — 10 existing + 2 new (BenchLM + ZeroEval).
-  // Removed (2026-07-01): OpenCompass (404 dead URL), Groq/Together/Cerebras
-  // provider endpoints (required auth, were dead code), metals.dev + Nominatim
-  // x3 (Mapa Proveedores module removed).
+  // Active sources (7 real data sources + OpenRouter health-only):
+  //   AA, LiteLLM, Arena, ER-API, HuggingFace Hub, BenchLM, ZeroEval (real)
+  //   OpenRouter (health check only — to be upgraded to real enrichment)
+  // Removed: Aider, Ollama (fragile HTML scraping), Helicone, Groq Status (vanity).
   const [
     aa,
     litellm,
     arena,
     exchange,
-    helicone,
-    groqStatus,
     openrouter,
     modelsDev,
     benchlm,
@@ -2079,8 +1994,6 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     fetchLiteLLM(),
     fetchArenaAI(),
     fetchExchangeRates(),
-    fetchHelicone(),
-    fetchGroqStatus(),
     fetchOpenRouterHealth(),
     fetchModelsDev(),
     fetchBenchLM(),
@@ -2123,8 +2036,6 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     arena.health,
     exchange.health,
     hfHub.health,
-    helicone,
-    groqStatus,
     openrouter,
     modelsDev.health,
     benchlm.health,
