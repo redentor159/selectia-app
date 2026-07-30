@@ -1,32 +1,25 @@
-// ================================================================
 // SELECTIA — Server-side Orchestrator
-// Fetches 21 APIs (13 in production + 8 sub-endpoints of BenchLM) in
-// parallel, merges results, caches 30 min, and pushes ntfy.sh alerts
-// on failure.
+// Fetches 10 APIs (+ 5 sub-endpoints of BenchLM) in parallel,
+// merges results, caches 30 min, and pushes ntfy.sh alerts on failure.
 // ================================================================
 //
-// Sources (21 total — 13 in production + 8 sub-endpoints of BenchLM):
+// Sources (10 active — removed Aider #5 and Ollama #6 on 2026-07-30):
 //   1.  Artificial Analysis (Intelligence Index, pricing, speed)  [critical]
 //   2.  LiteLLM (cost map / context window)                      [critical]
 //   3.  Arena AI / wulong mirror (Elo + votes)                   [critical]
 //   4.  Open ER-API (USD → PEN / EUR / GBP)                      [critical]
-//   5.  Aider leaderboard (HTML scraping)
-//   6.  Ollama library (HTML scraping)
-//   7.  BigCode leaderboard (HF datasets — HumanEval pass@1)
-//   8.  Helicone (GitHub-hosted)
-//   9.  Groq Status
-//   10. OpenRouter (health check)
-//   11. OpenCompass leaderboard
-//   12. Groq provider endpoint (active check)
-//   13. Together provider endpoint (active check)
-//   14. Cerebras provider endpoint (active check)
-//   15. metals.dev commodities (gold/silver/platinum/palladium)
-//   16. Nominatim — Lima (steel suppliers)
-//   17. Nominatim — Arequipa + Chiclayo (steel suppliers)
-//   18. Nominatim — Lima/Arequipa/Chiclayo (above, counted as 3 sub-sources)
-//   19. Models.dev provider catalog (Profile C "Catálogo de Proveedores")
-//   20. BenchLM (8 category scores + price index + stats + Función K + Función L)
-//   21. ZeroEval (failure_rate + P95 latency + throughput + total calls)
+//   5.  HuggingFace Hub (downloads, likes, gated, GGUF, params)  [enrichment]
+//   6.  Helicone (GitHub-hosted health check)                    [vanity]
+//   7.  Groq Status                                              [vanity]
+//   8.  OpenRouter (health check)                                [vanity — potential real]
+//   9.  Models.dev provider catalog (Profile C)
+//   10. BenchLM (8 category scores + price index + stats)
+//   11. ZeroEval (failure_rate + P95 latency + throughput)
+//
+// REMOVED (ghost/fragile — only fed SourceHealth badges):
+//   ✗ Aider leaderboard (HTML scraping — no JSON API, never mapped pass@2 → codingIndex)
+//   ✗ Ollama library    (HTML scraping — never updated ollamaAvailable field)
+//
 //
 // BenchLM fetches 5 sub-endpoints in parallel (counts as 1 source in the
 // health panel, but contributes 5 of the 8 sub-endpoints above):
@@ -929,64 +922,6 @@ async function fetchExchangeRates(): Promise<{
         lastSync: new Date().toISOString(),
         note: `Error: ${(err as Error).message}`,
       },
-    };
-  }
-}
-
-// --- 5. Aider (HTML scraping) -----------------------------------
-
-async function fetchAider(): Promise<SourceHealth> {
-  const url = "https://aider.chat/docs/leaderboards/";
-  const start = Date.now();
-  try {
-    const res = await fetchWithRetry(url);
-    const html = await res.text();
-    const rows = (html.match(/<tr[\s\S]*?<\/tr>/g) ?? []).length;
-    return {
-      id: "aider",
-      name: "Aider Leaderboard",
-      status: "green",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `~${rows} filas scrapeadas (coding pass@2)`,
-    };
-  } catch (err) {
-    return {
-      id: "aider",
-      name: "Aider Leaderboard",
-      status: "yellow",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `Error: ${(err as Error).message}`,
-    };
-  }
-}
-
-// --- 6. Ollama library (HTML scraping) --------------------------
-
-async function fetchOllama(): Promise<SourceHealth> {
-  const url = "https://ollama.com/library";
-  const start = Date.now();
-  try {
-    const res = await fetchWithRetry(url);
-    const html = await res.text();
-    const modelCount = (html.match(/<a[^>]+href="\/library\/[^"]+"/g) ?? []).length;
-    return {
-      id: "ollama",
-      name: "Ollama Library",
-      status: "green",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `${modelCount} modelos descargables offline`,
-    };
-  } catch (err) {
-    return {
-      id: "ollama",
-      name: "Ollama Library",
-      status: "yellow",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `Error: ${(err as Error).message}`,
     };
   }
 }
@@ -2133,8 +2068,6 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     litellm,
     arena,
     exchange,
-    aider,
-    ollama,
     helicone,
     groqStatus,
     openrouter,
@@ -2146,14 +2079,12 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     fetchLiteLLM(),
     fetchArenaAI(),
     fetchExchangeRates(),
-    fetchAider(),
-    fetchOllama(),
     fetchHelicone(),
     fetchGroqStatus(),
     fetchOpenRouterHealth(),
     fetchModelsDev(),
-    fetchBenchLM(),          // NEW — fetches 5 BenchLM sub-endpoints
-    fetchZeroEvalMetrics(),  // NEW
+    fetchBenchLM(),
+    fetchZeroEvalMetrics(),
   ]);
 
   // NOTE: HuggingFace enrichment is fetched after AA (depends on aa.models).
@@ -2191,15 +2122,13 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     litellm.health,
     arena.health,
     exchange.health,
-    aider,
-    ollama,
     hfHub.health,
     helicone,
     groqStatus,
     openrouter,
     modelsDev.health,
-    benchlm.health,   // NEW
-    zeroeval.health,  // NEW
+    benchlm.health,
+    zeroeval.health,
   ];
 
   // If AA quota is empty/zero and we fell back, restore default quota
