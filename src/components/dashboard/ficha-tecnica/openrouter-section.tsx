@@ -215,32 +215,33 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
       </div>
 
       {/* 3. Footer utilities (Params + HF ID) condensed */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[var(--border-default)]">
-        {hasParams ? (
-          <div className="relative">
+      <div className="flex flex-col gap-3 pt-3 border-t border-[var(--border-default)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {hasParams ? (
             <button 
               onClick={() => setShowParams(!showParams)}
-              className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1.5 transition-colors focus:outline-none"
+              className={`text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center gap-1.5 focus:outline-none ${showParams ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
             >
-              <Settings2 className="h-3 w-3" />
+              <Settings2 className={`h-3 w-3 transition-transform ${showParams ? "rotate-90" : ""}`} />
               Parámetros de API Soportados
             </button>
-            {showParams && (
-              <div className="absolute left-0 bottom-full mb-2 w-[calc(100vw-32px)] sm:w-[400px] p-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-[var(--shadow-high)] rounded-md z-[100] animate-in fade-in slide-in-from-bottom-1">
-                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                  {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : <div />}
+          ) : <div />}
 
-        {model.orHuggingFaceId && (
-          <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1.5">
-            HF Base: 
-            <a href={`https://huggingface.co/${model.orHuggingFaceId}`} target="_blank" rel="noopener noreferrer" className="font-mono hover:text-[var(--text-primary)] underline underline-offset-2">
-              {model.orHuggingFaceId}
-            </a>
+          {model.orHuggingFaceId && (
+            <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1.5">
+              HF Base: 
+              <a href={`https://huggingface.co/${model.orHuggingFaceId}`} target="_blank" rel="noopener noreferrer" className="font-mono hover:text-[var(--text-primary)] underline underline-offset-2">
+                {model.orHuggingFaceId}
+              </a>
+            </div>
+          )}
+        </div>
+
+        {hasParams && showParams && (
+          <div className="p-3 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded-md animate-in fade-in slide-in-from-top-2">
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
+            </p>
           </div>
         )}
       </div>

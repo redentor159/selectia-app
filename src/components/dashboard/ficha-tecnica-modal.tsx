@@ -40,8 +40,38 @@ import {
   Timer,
   Check,
   Cpu,
+  Info
 } from "lucide-react";
 import type { AIModel } from "@/lib/types";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function CompactHFRow({ label, value, tooltip, icon: Icon, valueClassName }: { label: string; value: React.ReactNode; tooltip?: React.ReactNode; icon?: any; valueClassName?: string }) {
+  const content = (
+    <div className="flex items-baseline justify-between py-1.5 border-b border-[var(--border-default)] last:border-0 group gap-4">
+      <div className="flex items-center gap-1.5 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors shrink-0">
+        {Icon && <Icon className="h-3 w-3 shrink-0" />}
+        <span className="text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">{label}</span>
+      </div>
+      <div className="text-right flex-1 flex justify-end min-w-0">
+        <span className={valueClassName || "text-sm font-semibold text-[var(--text-primary)] break-all sm:break-normal text-right"}>{value}</span>
+      </div>
+    </div>
+  );
+
+  if (!tooltip) return content;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-help">{content}</div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[250px]">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 // Extracted modules
 import { formatBytes, formatParams, formatRelative, resolveHfId } from "./ficha-tecnica/utils";
@@ -281,45 +311,39 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   color="var(--color-success)"
                   description="Adopción de desarrolladores construyendo en el ecosistema HuggingFace"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <MetricCard
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
+                    <CompactHFRow
                       icon={Boxes}
-                      label="Spaces de HuggingFace"
+                      label="Spaces"
                       value={details.spaces > 0 ? `${details.spaces} apps` : "—"}
-                      hint="Aplicaciones demo interactivas que usan este modelo"
-                      tooltip="Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={Server}
                       label="HF Inference"
                       value={
-                        details.inference === "warm" ? <span className="flex items-center gap-1 text-[var(--color-warning)]"><Zap className="h-4 w-4" fill="currentColor" /> Warm (inmediato)</span> :
-                        details.inference === "cold" ? <span className="flex items-center gap-1 text-[var(--text-secondary)]"><Timer className="h-4 w-4" /> Cold (delay arranque)</span> :
-                        "— No disponible"
+                        details.inference === "warm" ? <span className="flex items-center gap-1 text-[var(--color-warning)]"><Zap className="h-3 w-3" fill="currentColor" /> Warm</span> :
+                        details.inference === "cold" ? <span className="flex items-center gap-1 text-[var(--text-secondary)]"><Timer className="h-3 w-3" /> Cold</span> :
+                        "—"
                       }
-                      hint="Disponibilidad de infraestructura gratuita en HF"
-                      tooltip="Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Disponibilidad de infraestructura gratuita en HF</div>Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor.</>}
                     />
                   </div>
                   {details.spacesSample && details.spacesSample.length > 0 && (
-                    <div className="mt-2">
-                      <div className="text-xs uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-                        Ejemplos de Spaces
-                      </div>
-                      <div className="space-y-1">
-                        {details.spacesSample.map((s, i) => (
-                          <a
-                            key={i}
-                            href={`https://huggingface.co/spaces/${s}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block text-xs text-[var(--brand-primary)] hover:underline truncate"
-                          >
-                            <ExternalLink className="h-3 w-3 inline mr-1" />
-                            {s}
-                          </a>
-                        ))}
-                      </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Ejemplos:</span>
+                      {details.spacesSample.map((s, i) => (
+                        <a
+                          key={i}
+                          href={`https://huggingface.co/spaces/${s}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-[var(--brand-primary)] hover:underline inline-flex items-center gap-1 bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded border border-[var(--border-default)]"
+                        >
+                          <ExternalLink className="h-2.5 w-2.5" />
+                          {s}
+                        </a>
+                      ))}
                     </div>
                   )}
                 </Section>
@@ -331,27 +355,24 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   color="var(--brand-primary)"
                   description="Descargas (acumulado) vs trendingScore (velocidad reciente)"
                 >
-                  <div className="grid grid-cols-3 gap-2">
-                    <MetricCard
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1">
+                    <CompactHFRow
                       icon={Download}
                       label="Downloads"
                       value={details.downloads != null ? details.downloads.toLocaleString("es-PE") : "—"}
-                      hint="Adopción acumulada"
-                      tooltip="Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={Heart}
                       label="Likes"
                       value={details.likes != null ? details.likes.toLocaleString("es-PE") : "—"}
-                      hint="Aprobación cualitativa"
-                      tooltip="Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={Flame}
                       label="Trending Score"
                       value={details.trendingScore != null ? details.trendingScore.toFixed(1) : "—"}
-                      hint={details.trendingScore != null && details.trendingScore > 50 ? <span className="flex items-center gap-1 text-[var(--color-warning)]"><Zap className="h-3 w-3" fill="currentColor" /> Alta velocidad</span> : "Velocidad normal"}
-                      tooltip="Un puntaje algorítmico de HuggingFace que mide el 'momentum' actual del modelo (descargas y likes recientes relativos al histórico). Un score alto indica que el modelo es tendencia hoy."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Velocidad reciente</div>Un puntaje algorítmico de HuggingFace que mide el momentum actual del modelo. Un score alto indica que el modelo es tendencia hoy.</>}
                     />
                   </div>
                 </Section>
@@ -364,44 +385,46 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     color="var(--color-warning)"
                     description="Parámetros exactos por tipo de dato — para cálculo de VRAM"
                   >
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      <MetricCard
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+                      <CompactHFRow
                         icon={Hash}
                         label="Parámetros totales"
                         value={details.safetensors.total ? formatParams(details.safetensors.total) : "—"}
-                        hint="Conteo exacto (no aproximado)"
-                        tooltip="Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM."
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
                       />
                       {details.safetensors.parameters && Object.entries(details.safetensors.parameters).map(([dtype, count]) => (
-                        <MetricCard
+                        <CompactHFRow
                           key={dtype}
                           icon={Hash}
                           label={`Precisión ${dtype}`}
                           value={formatParams(count)}
-                          hint={`${count.toLocaleString("es-PE")} parámetros`}
-                          tooltip={`Cantidad de parámetros almacenados específicamente en la precisión '${dtype}' (ej. F32, F16, BF16). Sirve para identificar modelos de precisión mixta o cuantizados nativamente.`}
+                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{count.toLocaleString("es-PE")} parámetros</div>Cantidad de parámetros almacenados específicamente en la precisión '{dtype}'. Sirve para identificar modelos de precisión mixta o cuantizados nativamente.</>}
                         />
                       ))}
                       {details.siblings && (
-                        <MetricCard
+                        <CompactHFRow
                           icon={FileCode2}
                           label="Archivos en repo"
-                          value={String(details.siblings.count)}
-                          hint={details.siblings.files.some(f => f.endsWith(".gguf")) ? <span className="flex items-center gap-1 text-[var(--color-success)]"><Check className="h-3 w-3" /> Incluye .gguf</span> : "Sin .gguf propios"}
-                          tooltip="Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards."
+                          value={
+                            <span className="flex items-center justify-end gap-1.5">
+                              {details.siblings.count}
+                              {details.siblings.files.some(f => f.endsWith(".gguf")) ? <Check className="h-3 w-3 text-[var(--color-success)]" /> : null}
+                            </span>
+                          }
+                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Distribución de archivos</div>Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards.</>}
                         />
                       )}
                     </div>
                     {details.siblings && details.siblings.files.some(f => f.endsWith(".gguf")) && (
-                      <div className="mt-2 rounded-md border border-[var(--color-success-border)] bg-[var(--color-success-bg)] p-2 text-xs text-[var(--color-success)] flex items-start gap-1">
-                        <Check className="h-4 w-4 shrink-0" />
+                      <div className="mt-2 text-[11px] text-[var(--color-success)] flex items-start gap-1">
+                        <Check className="h-3 w-3 shrink-0 mt-0.5" />
                         <span>Este repo distribuye versiones GGUF propias: {details.siblings.files.filter(f => f.endsWith(".gguf")).slice(0, 5).join(", ")}</span>
                       </div>
                     )}
                     {details.tags && details.tags.includes("gguf") && !details.siblings?.files.some(f => f.endsWith(".gguf")) && (
-                      <div className="mt-2 rounded-md border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-2 text-xs text-[var(--color-warning)] flex items-start gap-1">
-                        <AlertCircle className="h-4 w-4 shrink-0" />
-                        <span>Tag "gguf" presente pero sin archivos .gguf — la versión cuantizada puede estar en un repo comunidad (busca bartowski/{hfModelId}-GGUF)</span>
+                      <div className="mt-2 text-[11px] text-[var(--color-warning)] flex items-start gap-1">
+                        <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span>Tag "gguf" presente pero sin archivos .gguf — la versión cuantizada puede estar en un repo comunidad.</span>
                       </div>
                     )}
                   </Section>
@@ -416,53 +439,53 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   color="var(--color-teal)"
                   description="Para integración directa mediante código"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <MetricCard
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1">
+                    <CompactHFRow
                       icon={Library}
                       label="Library"
                       value={details.libraryName ?? "—"}
-                      hint="Framework recomendado"
-                      tooltip="La biblioteca de Python predeterminada recomendada para cargar y ejecutar este modelo (usualmente 'transformers', 'sentence-transformers' o 'diffusers')."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Framework recomendado</div>La biblioteca de Python predeterminada recomendada para cargar y ejecutar este modelo.</>}
                     />
-                    <MetricCard
-                      icon={FileCode2}
-                      label="Architecture"
-                      value={details.config?.architectures?.[0] ?? details.config?.model_type ?? "—"}
-                      hint="Clase base para cargar el modelo"
-                      tooltip="La arquitectura algorítmica específica definida en config.json (por ejemplo, LlamaForCausalLM, MistralForCausalLM). Dicta cómo se estructuran las capas del modelo."
-                    />
-                    {details.transformersInfo && (
-                      <MetricCard
-                        icon={FileCode2}
-                        label="Auto Model"
-                        value={details.transformersInfo.auto_model ?? "—"}
-                        hint="Clase exacta de Transformers"
-                        tooltip="La clase específica de HuggingFace Transformers (ej. AutoModelForCausalLM) que debe importarse para cargar los pesos correctamente en código Python."
-                      />
-                    )}
                     {details.transformersInfo?.processor && (
-                      <MetricCard
+                      <CompactHFRow
                         icon={MessageSquare}
                         label="Processor"
                         value={details.transformersInfo.processor}
-                        hint="Clase del tokenizador"
-                        tooltip="El pre-procesador o tokenizador (ej. AutoTokenizer o ChatTemplateProcessor) requerido para convertir texto bruto en los tensores de entrada que espera la arquitectura."
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase del tokenizador</div>El pre-procesador o tokenizador requerido para convertir texto bruto en los tensores de entrada.</>}
                       />
                     )}
-                    <MetricCard
+                    <CompactHFRow
                       icon={Hash}
                       label="Commit SHA"
+                      valueClassName="text-[11px] font-mono text-[var(--text-primary)] text-right"
                       value={details.sha ? details.sha.slice(0, 12) + "…" : "—"}
-                      hint={details.sha ? `Hash completo: ${details.sha}` : "Para fijar versión"}
-                      tooltip="Commit SHA exacto de la versión principal (main) del repositorio. Fundamental usarlo como 'revision' al descargar el modelo en producción para evitar que actualizaciones inesperadas rompan el sistema."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Para fijar versión</div>Commit SHA exacto de la versión principal. Fundamental usarlo como 'revision' al descargar el modelo en producción.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={HardDrive}
                       label="Used Storage"
                       value={details.usedStorage != null ? formatBytes(details.usedStorage) : "—"}
-                      hint="Espacio requerido en disco"
-                      tooltip="Tamaño total real (en bytes) que ocuparán los archivos del modelo al descargarse en el disco de tu servidor. No incluye memoria RAM/VRAM de inferencia."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Espacio requerido en disco</div>Tamaño total real (en bytes) que ocuparán los archivos del modelo al descargarse en el disco de tu servidor. No incluye memoria RAM/VRAM de inferencia.</>}
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pt-1 mt-1 border-t border-[var(--border-default)]">
+                    <CompactHFRow
+                      icon={FileCode2}
+                      label="Architecture"
+                      valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
+                      value={details.config?.architectures?.[0] ?? details.config?.model_type ?? "—"}
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase base</div>La arquitectura algorítmica específica definida en config.json. Dicta cómo se estructuran las capas del modelo.</>}
+                    />
+                    {details.transformersInfo && (
+                      <CompactHFRow
+                        icon={FileCode2}
+                        label="Auto Model"
+                        valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
+                        value={details.transformersInfo.auto_model ?? "—"}
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase exacta de Transformers</div>La clase específica de HuggingFace Transformers (ej. AutoModelForCausalLM) que debe importarse.</>}
+                      />
+                    )}
                   </div>
 
                   {/* chat_template */}
@@ -496,38 +519,36 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   color="var(--color-success)"
                   description="Estado del repositorio en HuggingFace Hub"
                 >
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <MetricCard
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1">
+                    <CompactHFRow
                       icon={AlertCircle}
                       label="Disabled"
-                      value={details.disabled === true ? <span className="flex items-center gap-1 text-[var(--color-error)]"><Ban className="h-4 w-4" /> Sí</span> : <span className="flex items-center gap-1 text-[var(--color-success)]"><Check className="h-4 w-4" /> No</span>}
-                      hint="¿Repo deshabilitado?"
-                      tooltip="Si es 'Sí', el autor ha marcado este repositorio como inactivo o roto, o HuggingFace lo ha deshabilitado por razones de seguridad. Nunca usar modelos disabled."
+                      value={details.disabled === true ? <span className="flex items-center gap-1 text-[var(--color-error)] justify-end"><Ban className="h-3 w-3" /> Sí</span> : <span className="flex items-center gap-1 text-[var(--color-success)] justify-end"><Check className="h-3 w-3" /> No</span>}
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">¿Repo deshabilitado?</div>Si es 'Sí', el autor ha marcado este repositorio como inactivo o roto, o HuggingFace lo ha deshabilitado por razones de seguridad. Nunca usar modelos disabled.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={Server}
                       label="Gated"
                       value={
-                        details.gated === true || details.gated === "manual" ? <span className="flex items-center gap-1 text-[var(--color-warning)]"><Lock className="h-4 w-4" /> Manual</span> :
-                        details.gated === "auto" ? <span className="flex items-center gap-1 text-[var(--color-info)]"><Lock className="h-4 w-4" /> Auto</span> :
-                        <span className="flex items-center gap-1 text-[var(--color-success)]"><Unlock className="h-4 w-4" /> Libre</span>
+                        details.gated === true || details.gated === "manual" ? <span className="flex items-center gap-1 text-[var(--color-warning)] justify-end"><Lock className="h-3 w-3" /> Manual</span> :
+                        details.gated === "auto" ? <span className="flex items-center gap-1 text-[var(--color-info)] justify-end"><Lock className="h-3 w-3" /> Auto</span> :
+                        <span className="flex items-center gap-1 text-[var(--color-success)] justify-end"><Unlock className="h-3 w-3" /> Libre</span>
                       }
-                      hint="Acceso: libre/auto/manual"
-                      tooltip="Un modelo 'Gated' requiere que inicies sesión en HuggingFace y aceptes términos de licencia antes de descargarlo (ej. modelos de Meta o Google). 'Manual' requiere aprobación humana del creador."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Acceso: libre/auto/manual</div>Un modelo 'Gated' requiere que inicies sesión en HuggingFace y aceptes términos de licencia antes de descargarlo. 'Manual' requiere aprobación humana.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={CheckCircle2}
                       label="Last Modified"
+                      valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"
                       value={details.lastModified ? formatRelative(details.lastModified) : "—"}
-                      hint={details.lastModified ? new Date(details.lastModified).toLocaleString("es-PE") : ""}
-                      tooltip="Fecha exacta del último commit o cambio en los archivos del repositorio. Modelos sin actualizaciones por más de 6 meses pueden estar obsoletos."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{details.lastModified ? new Date(details.lastModified).toLocaleString("es-PE") : ""}</div>Fecha exacta del último commit o cambio en los archivos del repositorio. Modelos sin actualizaciones por más de 6 meses pueden estar obsoletos.</>}
                     />
-                    <MetricCard
+                    <CompactHFRow
                       icon={CheckCircle2}
                       label="Created"
+                      valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"
                       value={details.createdAt ? formatRelative(details.createdAt) : "—"}
-                      hint={details.createdAt ? new Date(details.createdAt).toLocaleString("es-PE") : ""}
-                      tooltip="Fecha de creación original del repositorio en HuggingFace Hub."
+                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{details.createdAt ? new Date(details.createdAt).toLocaleString("es-PE") : ""}</div>Fecha de creación original del repositorio en HuggingFace Hub.</>}
                     />
                   </div>
                 </Section>
@@ -542,12 +563,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   >
                     <div className="flex flex-wrap gap-1">
                       {details.tags.slice(0, 30).map((t, i) => (
-                        <span key={i} className="rounded px-2 py-1 text-xs font-mono bg-[var(--bg-overlay)] border border-[var(--border-default)] text-[var(--text-secondary)]">
+                        <span key={i} className="rounded px-1.5 py-0.5 text-[11px] font-mono bg-[var(--bg-overlay)] border border-[var(--border-default)] text-[var(--text-secondary)]">
                           {t}
                         </span>
                       ))}
                       {details.tags.length > 30 && (
-                        <span className="text-xs text-[var(--text-disabled)] self-center ml-1">
+                        <span className="text-[11px] text-[var(--text-disabled)] self-center ml-1">
                           +{details.tags.length - 30} más
                         </span>
                       )}
@@ -585,7 +606,7 @@ function Section({
         </div>
         <p className="text-xs text-[var(--text-disabled)] mt-1">{description}</p>
       </div>
-      <div className="p-4 pt-4">{children}</div>
+      <div className="px-4 py-2">{children}</div>
     </div>
   );
 }
