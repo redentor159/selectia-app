@@ -1,7 +1,8 @@
-import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2, Info } from "lucide-react";
 import type { AIModel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const PARAM_LABELS: Record<string, string> = {
   temperature: "Temperature",
@@ -70,6 +71,20 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
       <div className="flex items-center justify-between pb-2 border-b border-[var(--border-default)]">
         <div className="flex items-center gap-2">
           <h4 className="text-sm font-mono font-semibold text-[var(--text-primary)] tracking-tight">{orId}</h4>
+          
+          {model.orDescription && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-[var(--text-disabled)] hover:text-[var(--text-secondary)] transition-colors focus:outline-none" aria-label="Ver descripción">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="start" className="w-80 text-xs text-[var(--text-secondary)] leading-relaxed p-3 shadow-[var(--shadow-high)] z-[100]">
+                {model.orDescription}
+              </PopoverContent>
+            </Popover>
+          )}
+
           {isAlias && model.orAliasTargetSlug && (
             <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-[var(--bg-overlay)] text-[var(--text-secondary)] border border-[var(--border-default)]">
               Alias: {model.orAliasTargetSlug}
@@ -211,16 +226,19 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
       {/* 3. Footer utilities (Params + HF ID) condensed */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[var(--border-default)]">
         {hasParams ? (
-          <details className="group relative">
-            <summary className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer list-none select-none transition-colors">
-              ▶ Parámetros de API Soportados
-            </summary>
-            <div className="absolute left-0 top-full mt-2 w-[calc(100vw-32px)] max-w-md z-10 p-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-lg rounded-md">
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1.5 transition-colors focus:outline-none">
+                <Settings2 className="h-3 w-3" />
+                Parámetros de API Soportados
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" align="start" className="w-[calc(100vw-32px)] sm:w-[400px] p-3 shadow-[var(--shadow-high)] z-[100]">
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                 {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
               </p>
-            </div>
-          </details>
+            </PopoverContent>
+          </Popover>
         ) : <div />}
 
         {model.orHuggingFaceId && (
