@@ -58,7 +58,6 @@ function CompactRow({ label, value, tooltip }: { label: string; value: React.Rea
 }
 
 export function OpenRouterSection({ model }: { model: AIModel }) {
-  const [showDesc, setShowDesc] = useState(false);
   const [showParams, setShowParams] = useState(false);
 
   const orId = model.orModelId;
@@ -77,18 +76,6 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
         <div className="flex items-center gap-2">
           <h4 className="text-sm font-mono font-semibold text-[var(--text-primary)] tracking-tight">{orId}</h4>
           
-          {model.orDescription && (
-            <div className="relative flex items-center">
-              <button 
-                onClick={() => setShowDesc(!showDesc)}
-                className={cn("hover:text-[var(--text-secondary)] transition-colors focus:outline-none", showDesc ? "text-[var(--text-secondary)]" : "text-[var(--text-disabled)]")} 
-                aria-label="Ver descripción"
-              >
-                <Info className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-
           {isAlias && model.orAliasTargetSlug && (
             <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-[var(--bg-overlay)] text-[var(--text-secondary)] border border-[var(--border-default)]">
               Alias: {model.orAliasTargetSlug}
@@ -109,12 +96,6 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
           Ver en OpenRouter <ExternalLink className="h-3 w-3" />
         </a>
       </div>
-
-      {showDesc && model.orDescription && (
-        <div className="text-xs text-[var(--text-secondary)] leading-relaxed p-3 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded-md animate-in fade-in slide-in-from-top-1">
-          {model.orDescription}
-        </div>
-      )}
 
       {/* 2. High-Density Data Grid (3 columns on desktop) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
