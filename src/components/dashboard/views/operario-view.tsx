@@ -1,0 +1,395 @@
+"use client";
+
+import { useMemo, useState, useEffect } from "react";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { useDashboardStore } from "@/store/dashboard-store";
+import { recommend } from "@/lib/engine/hre-topsis";
+import { ProviderLogo } from "../provider-logo";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Copy,
+  Check,
+  PenLine,
+  Code2,
+  FileText,
+  QrCode,
+  Download,
+  ExternalLink,
+  HardHat,
+  Lightbulb,
+  type LucideIcon,
+} from "lucide-react";
+import type { AIModel } from "@/lib/types";
+
+interface TaskCardConfig {
+  id: string;
+  title: string;
+  query: string;
+  icon: LucideIcon;
+  accent: string; // CSS var name
+  shortcut: string;
+}
+
+const TASKS: TaskCardConfig[] = [
+  {
+    id: "escribir",
+    title: "Escribir",
+    query: "redactar correo a cliente explicando demora en entrega",
+    icon: PenLine,
+    accent: "var(--color-blue)",
+    shortcut: "1",
+  },
+  {
+    id: "codigo",
+    title: "Código",
+    query: "generar g-code para fresado de brida circular",
+    icon: Code2,
+    accent: "var(--color-success)",
+    shortcut: "2",
+  },
+  {
+    id: "documentos",
+    title: "Documentos",
+    query: "resumir manual técnico de operación CNC",
+    icon: FileText,
+    accent: "var(--color-orange)",
+    shortcut: "3",
+  },
+];
+
+export function OperarioView() {
+  const { data, isLoading } = useDashboardData();
+  const { operationMode } = useDashboardStore();
+  const { toast } = useToast();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Helper to map provider to chat URL
+  const getChatUrl = (model: AIModel) => {
+    const provider = model.provider.toLowerCase();
+    if (provider.includes("google")) return "https://gemini.google.com";
+    if (provider.includes("anthropic")) return "https://claude.ai";
+    if (provider.includes("openai")) return "https://chatgpt.com";
+    if (provider.includes("perplexity")) return "https://perplexity.ai";
+    if (provider.includes("mistral")) return "https://chat.mistral.ai";
+    if (provider.includes("meta")) return "https://meta.ai";
+    return "https://huggingface.co/chat"; // Fallback for open models
+  };
+
+  const getChatName = (model: AIModel) => {
+    const provider = model.provider.toLowerCase();
+    if (provider.includes("google")) return "Gemini";
+    if (provider.includes("anthropic")) return "Claude";
+    if (provider.includes("openai")) return "ChatGPT";
+    if (provider.includes("perplexity")) return "Perplexity";
+    if (provider.includes("mistral")) return "Le Chat";
+    if (provider.includes("meta")) return "Meta AI";
+    return "HuggingChat";
+  };
+  // gap #13 — QR dialog state for the Documentos card. Holds the model name
+  // to be encoded (so the operario can scan + paste into ChatGPT/Claude on
+  // their phone without typing).
+  const [qrModel, setQrModel] = useState<AIModel | null>(null);
+
+  const recommendations = useMemo(() => {
+    if (!data) return {};
+    const out: Record<string, AIModel | null> = {};
+    for (const task of TASKS) {
+      // Profile E exception: passes profile="E" so recommend() doesn't apply
+      // the anti-free 70% threshold. Operator should always see a free/friendly
+      // option at the top, even if it's lower quality than the best paid.
+      const result = recommend(task.query, data.models, operationMode, "E");
+      out[task.id] = result.winners[0]?.model ?? null;
+    }
+    return out;
+  }, [data, operationMode]);
+
+  const handleCopy = async (model: AIModel, taskId: string) => {
+    try {
+      await navigator.clipboard.writeText(model.name);
+      setCopiedId(taskId);
+      toast({
+        title: "¡Nombre copiado!",
+        description: model.name,
+      });
+      setTimeout(() => setCopiedId(null), 5000); // 5s to allow user to click ChatGPT link
+    } catch {
+      toast({
+        title: "No se pudo copiar",
+        description: "Tu navegador no permite acceso al portapapeles.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      const task = TASKS.find((t) => t.shortcut === e.key);
+      if (task) {
+        const model = recommendations[task.id];
+        if (model) {
+          handleCopy(model, task.id);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [recommendations]); // Intentionally not including handleCopy to avoid rapid rebinds
+
+  // gap #13 — download the QR PNG (200x200) generated by api.qrserver.com.
+  // Fetches the image as a blob and triggers a normal download.
+  const handleDownloadQr = async (model: AIModel) => {
+    try {
+      const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(
+        model.name
+      )}`;
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `qr-${model.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+      toast({
+        title: "QR descargado",
+        description: `PNG del modelo ${model.name} guardado.`,
+      });
+    } catch {
+      toast({
+        title: "No se pudo descargar el QR",
+        description: "Revisá tu conexión e intentá de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <Skeleton className="h-16 w-72" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-80" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 animate-fade-in px-2 md:px-0">
+      <header className="text-center md:text-left">
+        <h1
+          className="flex items-center justify-center md:justify-start gap-2 text-2xl md:text-3xl font-bold tracking-tight text-[var(--text-primary)]"
+          style={{ letterSpacing: "-0.022em" }}
+        >
+          ¿Qué vas a hacer hoy?
+          <HardHat className="h-7 w-7 text-[var(--brand-primary)]" />
+        </h1>
+        <p className="text-base text-[var(--text-secondary)] mt-1">
+          Presiona <kbd className="font-mono bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded text-xs text-[var(--text-primary)] border border-[var(--border-default)] shadow-sm">1</kbd>, <kbd className="font-mono bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded text-xs text-[var(--text-primary)] border border-[var(--border-default)] shadow-sm">2</kbd> o <kbd className="font-mono bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded text-xs text-[var(--text-primary)] border border-[var(--border-default)] shadow-sm">3</kbd> en tu teclado para copiar la recomendación al instante.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+        {TASKS.map((task) => {
+          const model = recommendations[task.id];
+          const Icon = task.icon;
+          const isCopied = copiedId === task.id;
+          return (
+            <article
+              key={task.id}
+              className="relative overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-5 md:p-6 flex flex-col transition-all hover:border-[var(--border-strong)] hover:shadow-md"
+            >
+              {/* Top accent bar */}
+              <div
+                className="absolute top-0 left-0 right-0 h-1"
+                style={{ backgroundColor: task.accent }}
+              />
+
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="flex h-12 w-12 items-center justify-center rounded-xl text-white shrink-0 shadow-sm"
+                    style={{ backgroundColor: task.accent }}
+                  >
+                    <Icon className="h-6 w-6" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium uppercase tracking-wider text-[var(--text-secondary)]">
+                      Tarea
+                    </div>
+                    <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+                      {task.title}
+                    </h2>
+                  </div>
+                </div>
+                {/* Shortcut badge */}
+                <div 
+                  className="hidden md:flex items-center justify-center h-6 w-6 rounded text-xs font-mono font-bold text-[var(--text-secondary)] bg-[var(--bg-elevated)] border border-[var(--border-default)]"
+                  title={`Atajo de teclado: ${task.shortcut}`}
+                >
+                  {task.shortcut}
+                </div>
+              </div>
+
+              <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                {task.id === "escribir" &&
+                  "Para redactar correos, cartas o mensajes a clientes."}
+                {task.id === "codigo" &&
+                  "Para crear programas CNC, scripts o código."}
+                {task.id === "documentos" &&
+                  "Para resumir manuales, planos o contratos."}
+              </p>
+
+              {model ? (
+                <div className="mt-auto space-y-4">
+                  <div className="flex items-center gap-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] p-3">
+                    <ProviderLogo model={model} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="text-base font-semibold text-[var(--text-primary)] truncate"
+                        title={model.name}
+                      >
+                        {model.name}
+                      </div>
+                      <div className="text-sm text-[var(--text-secondary)] truncate">
+                        {model.provider}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={() => handleCopy(model, task.id)}
+                      size="lg"
+                      className="w-full h-14 text-base font-bold rounded-xl text-white shadow-md transition-all active:scale-[0.98]"
+                      style={{
+                        backgroundColor: task.accent,
+                        boxShadow: `0 4px 14px 0 color-mix(in srgb, ${task.accent} 40%, transparent)`,
+                      }}
+                    >
+                      {isCopied ? (
+                        <>
+                          <Check className="h-5 w-5 mr-2" />
+                          ¡Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-5 w-5 mr-2" />
+                          COPIAR NOMBRE
+                        </>
+                      )}
+                    </Button>
+                    
+                    {/* ADAPT: Direct link to Provider shown after copying */}
+                    {isCopied && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-10 text-xs font-medium rounded-xl border-[var(--brand-primary-subtle)] bg-[var(--bg-elevated)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary-subtle)] animate-fade-in"
+                        onClick={() => window.open(getChatUrl(model), "_blank")}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                        Abrir {getChatName(model)} para pegar
+                      </Button>
+                    )}
+                  </div>
+
+                  {task.id === "documentos" && !isCopied && (
+                    <Button
+                      onClick={() => setQrModel(model)}
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-9 text-xs rounded-xl border-[var(--border-strong)] hover:bg-[var(--bg-overlay)]"
+                    >
+                      <QrCode className="h-4 w-4 mr-1.5" />
+                      Generar QR del modelo
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-auto rounded-xl border border-dashed border-[var(--border-strong)] p-4 text-center text-sm text-[var(--text-secondary)]">
+                  No hay modelo disponible.
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+
+      {/* gap #13 — QR dialog. Uses api.qrserver.com (no deps) to generate a
+          200×200 PNG that encodes the recommended model name. The operario
+          scans it with their phone camera to skip typing the model name. */}
+      <Dialog open={!!qrModel} onOpenChange={(o) => !o && setQrModel(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5 text-base">
+              <QrCode className="h-4 w-4 text-[var(--brand-primary)]" />
+              QR del modelo recomendado
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Escaneá con la cámara de tu celular para copiar el nombre del modelo automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          {qrModel && (
+            <div className="flex flex-col items-center gap-3 py-2">
+              <div className="rounded-xl bg-white p-3 border border-[var(--border-default)]">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                    qrModel.name
+                  )}`}
+                  alt={`QR del modelo ${qrModel.name}`}
+                  width={200}
+                  height={200}
+                  className="block"
+                />
+              </div>
+              <div className="text-center">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">
+                  {qrModel.name}
+                </div>
+                <div className="text-xs text-[var(--text-secondary)]">
+                  {qrModel.provider}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => qrModel && handleDownloadQr(qrModel)}
+              disabled={!qrModel}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" />
+              Descargar PNG
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setQrModel(null)}
+              className="bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-hover, var(--brand-primary))]"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

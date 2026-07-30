@@ -1,0 +1,573 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ================================================================
+   SELECTIA — MASTER DESIGN SYSTEM
+   Based on: Stripe + Linear (tokens extracted live 2026-06-29)
+   Default: DARK mode — Palette D1 "Indigo/Violet"
+   ================================================================ */
+
+@theme inline {
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-fira), 'Fira Code', ui-monospace, monospace;
+
+  --color-sidebar-ring: var(--border-strong);
+  --color-sidebar-border: var(--border-default);
+  --color-sidebar-accent-foreground: var(--text-primary);
+  --color-sidebar-accent: var(--bg-overlay);
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-primary: var(--brand-accent);
+  --color-sidebar-foreground: var(--text-secondary);
+  --color-sidebar: var(--bg-elevated);
+
+  --color-chart-5: #f0bf00;
+  --color-chart-4: #fc7840;
+  --color-chart-3: #4ea7fc;
+  --color-chart-2: #68cc58;
+  --color-chart-1: #5e6ad2;
+
+  --color-ring: var(--brand-primary);
+  --color-input: var(--bg-overlay);
+  --color-border: var(--border-default);
+  --color-destructive: var(--color-error);
+  --color-accent-foreground: var(--text-primary);
+  --color-accent: var(--bg-overlay);
+  --color-muted-foreground: var(--text-secondary);
+  --color-muted: var(--bg-elevated);
+  --color-secondary-foreground: var(--text-primary);
+  --color-secondary: var(--bg-overlay);
+  --color-primary-foreground: var(--on-accent);
+  --color-primary: var(--brand-accent);
+  --color-popover-foreground: var(--text-primary);
+  --color-popover: var(--bg-elevated);
+  --color-card-foreground: var(--text-primary);
+  --color-card: var(--bg-surface);
+
+  --radius-sm: var(--radius-4);
+  --radius-md: var(--radius-8);
+  --radius-lg: var(--radius-12);
+  --radius-xl: var(--radius-16);
+}
+
+/* ================================================================
+   DESIGN TOKENS — PALETA INTERCAMBIABLE (Dark mode default D1)
+   ================================================================ */
+:root {
+  /* Brand */
+  --brand-primary: #5e6ad2;
+  --brand-primary-hover: #6d7ae0;
+  --brand-primary-subtle: rgba(94, 106, 210, 0.12);
+  --brand-accent: #533afd;
+  --brand-accent-hover: #6d52ff;
+  --brand-accent-glow: rgba(83, 58, 253, 0.30);
+  --on-accent: #ffffff;
+
+  /* Backgrounds — 4-layer depth system (Light mode) */
+  --bg-base: #ffffff;
+  --bg-elevated: #f7f8f8;
+  --bg-surface: #f0f1f3;
+  --bg-overlay: #e8e9eb;
+
+  /* Text — 3 levels (Light) */
+  --text-primary: #0f1011;
+  --text-secondary: #62666d;
+  --text-disabled: #a0a4ab;
+
+  /* Borders — hairline translucid (Light) */
+  --border-default: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --border-focus: var(--brand-primary);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.10);
+  --color-success-border: rgba(0, 214, 111, 0.20);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.10);
+  --color-warning-border: rgba(245, 166, 35, 0.20);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.10);
+  --color-error-border: rgba(234, 34, 97, 0.20);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.10);
+  --color-info-border: rgba(78, 167, 252, 0.20);
+
+  /* Linear label colors */
+  --color-indigo: #5e6ad2;
+  --color-teal: #00b8cc;
+  --color-green: #68cc58;
+  --color-orange: #fc7840;
+  --color-yellow: #f0bf00;
+  --color-red: #eb5757;
+  --color-blue: #4ea7fc;
+
+  /* Typography */
+  --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-fira: 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+
+  --text-size-tiny: 0.625rem;
+  --text-size-micro: 0.75rem;
+  --text-size-mini: 0.8125rem;
+  --text-size-small: 0.875rem;
+  --text-size-base: 0.9375rem;
+  --text-size-large: 1.0625rem;
+
+  /* Spacing — 8pt grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Radius */
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-24: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows — Stripe blue-tinted */
+  --shadow-tiny: 0px 1px 1px 0px rgba(50,50,93,0.05);
+  --shadow-low: 0px 1px 4px -1px rgba(50,50,93,0.06);
+  --shadow-medium: 0px 3px 12px rgba(50,50,93,0.06);
+  --shadow-high: 0px 7px 24px rgba(50,50,93,0.05);
+  --shadow-stripe-md: 0 6px 12px -2px rgba(50,50,93,0.08), 0 3px 7px -3px rgba(0,0,0,0.04);
+  --shadow-stripe-lg: 0 15px 35px 0 hsla(0,0%,9%,0.08), 0 3px 6px 0 hsla(0,0%,9%,0.06);
+  --shadow-stripe-xl: 0 30px 60px -50px rgba(0,0,0,0.10), 0 30px 60px -10px rgba(50,50,93,0.15);
+  --shadow-focus-glow: 0 0 0 3px var(--brand-accent-glow);
+  --shadow-focus-brand: 0 0 0 3px var(--brand-primary-subtle);
+
+  /* Motion */
+  --duration-fast: 100ms;
+  --duration-normal: 150ms;
+  --duration-regular: 250ms;
+  --duration-slow: 300ms;
+  --ease-snappy: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1.0);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-expo: cubic-bezier(0.165, 0.84, 0.44, 1.0);
+  --transition-fast: all var(--duration-fast) var(--ease-snappy);
+  --transition-normal: all var(--duration-normal) var(--ease-out-cubic);
+
+  /* Focus ring */
+  --focus-ring-color: var(--brand-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Z-index */
+  --z-sticky: 75;
+  --z-header: 100;
+  --z-overlay: 500;
+  --z-dialog-bg: 699;
+  --z-dialog: 700;
+  --z-toast: 800;
+  --z-tooltip: 1100;
+
+  /* Scrollbar */
+  --scrollbar-size: 8px;
+  --scrollbar-color: rgba(0,0,0,0.12);
+  --scrollbar-color-hover: rgba(0,0,0,0.22);
+}
+
+/* ================================================================
+   DARK MODE — Linear-style (Default active)
+   ================================================================ */
+.dark {
+  --brand-primary: #5e6ad2;
+  --brand-primary-hover: #6d7ae0;
+  --brand-primary-subtle: rgba(94, 106, 210, 0.12);
+  --brand-accent: #533afd;
+  --brand-accent-hover: #6d52ff;
+  --brand-accent-glow: rgba(83, 58, 253, 0.30);
+  --on-accent: #ffffff;
+
+  --bg-base: #08090a;
+  --bg-elevated: #1c1c1f;
+  --bg-surface: #232326;
+  --bg-overlay: #28282c;
+
+  --text-primary: #f7f8f8;
+  --text-secondary: #8a8f98;
+  --text-disabled: #62666d;
+
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.10);
+  --color-success-border: rgba(0, 214, 111, 0.20);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.10);
+  --color-warning-border: rgba(245, 166, 35, 0.20);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.10);
+  --color-error-border: rgba(234, 34, 97, 0.20);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.10);
+  --color-info-border: rgba(78, 167, 252, 0.20);
+
+  --scrollbar-color: rgba(255,255,255,0.10);
+  --scrollbar-color-hover: rgba(255,255,255,0.19);
+}
+
+/* ================================================================
+   DARK GRAY MODE — Professional grayscale (no indigo/violet)
+   ================================================================ */
+.dark-gray {
+  --brand-primary: #8a8f98;
+  --brand-primary-hover: #a0a4ab;
+  --brand-primary-subtle: rgba(138, 143, 152, 0.12);
+  --brand-accent: #62666d;
+  --brand-accent-hover: #8a8f98;
+  --brand-accent-glow: rgba(138, 143, 152, 0.25);
+  --on-accent: #ffffff;
+
+  --bg-base: #08090a;
+  --bg-elevated: #1c1c1f;
+  --bg-surface: #232326;
+  --bg-overlay: #28282c;
+
+  --text-primary: #f7f8f8;
+  --text-secondary: #8a8f98;
+  --text-disabled: #62666d;
+
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.10);
+  --color-success-border: rgba(0, 214, 111, 0.20);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.10);
+  --color-warning-border: rgba(245, 166, 35, 0.20);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.10);
+  --color-error-border: rgba(234, 34, 97, 0.20);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.10);
+  --color-info-border: rgba(78, 167, 252, 0.20);
+
+  --scrollbar-color: rgba(255,255,255,0.10);
+  --scrollbar-color-hover: rgba(255,255,255,0.19);
+}
+
+/* ================================================================
+   LIGHT GRAY MODE — ChatGPT-style light (clean white + very light gray)
+   Matches ChatGPT's light mode: pure white bg, #f9f9f9 sidebar,
+   dark gray text, subtle borders. Professional and minimal.
+   ================================================================ */
+.light-gray {
+  /* Brand — neutral dark gray (ChatGPT uses dark gray/black for primary) */
+  --brand-primary: #1f2937;
+  --brand-primary-hover: #111827;
+  --brand-primary-subtle: rgba(31, 41, 55, 0.06);
+  --brand-accent: #374151;
+  --brand-accent-hover: #1f2937;
+  --brand-accent-glow: rgba(31, 41, 55, 0.15);
+  --on-accent: #ffffff;
+
+  /* Backgrounds — ChatGPT exact: white base, very light gray sidebar */
+  --bg-base: #ffffff;
+  --bg-elevated: #f9f9f9;
+  --bg-surface: #f5f5f5;
+  --bg-overlay: #ececec;
+
+  /* Text — ChatGPT exact grays */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-disabled: #9ca3af;
+
+  /* Borders — very subtle, ChatGPT style */
+  --border-default: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.08);
+  --color-success-border: rgba(0, 214, 111, 0.18);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.08);
+  --color-warning-border: rgba(245, 166, 35, 0.18);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.08);
+  --color-error-border: rgba(234, 34, 97, 0.18);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.08);
+  --color-info-border: rgba(78, 167, 252, 0.18);
+
+  --scrollbar-color: rgba(0,0,0,0.10);
+  --scrollbar-color-hover: rgba(0,0,0,0.18);
+}
+
+/* ================================================================
+   BLANCO PURO — Extremadamente minimalista (casi todo blanco)
+   Inspirado en: Notion, Apple, Linear light. Sin color de marca,
+   solo grises súper sutiles. Máxima limpieza visual.
+   ================================================================ */
+.blanco-puro {
+  /* Brand — casi negro suave (sin ningún tono de color) */
+  --brand-primary: #1a1a1a;
+  --brand-primary-hover: #000000;
+  --brand-primary-subtle: rgba(0, 0, 0, 0.03);
+  --brand-accent: #2a2a2a;
+  --brand-accent-hover: #1a1a1a;
+  --brand-accent-glow: rgba(0, 0, 0, 0.06);
+  --on-accent: #ffffff;
+
+  /* Backgrounds — TODO blanco con variaciones mínimas */
+  --bg-base: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-surface: #fafafa;
+  --bg-overlay: #f4f4f4;
+
+  /* Text — solo 3 grises puros */
+  --text-primary: #111111;
+  --text-secondary: #888888;
+  --text-disabled: #c4c4c4;
+
+  /* Borders — casi invisibles */
+  --border-default: rgba(0, 0, 0, 0.05);
+  --border-strong: rgba(0, 0, 0, 0.10);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.10);
+  --color-success-border: rgba(0, 214, 111, 0.20);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.10);
+  --color-warning-border: rgba(245, 166, 35, 0.20);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.10);
+  --color-error-border: rgba(234, 34, 97, 0.20);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.10);
+  --color-info-border: rgba(78, 167, 252, 0.20);
+
+  --scrollbar-color: rgba(0,0,0,0.06);
+  --scrollbar-color-hover: rgba(0,0,0,0.12);
+}
+
+/* ================================================================
+   NEGRO PURO — Extremadamente minimalista oscuro (casi todo negro)
+   Inspirado en: Linear dark, Vercel dark, Terminal. Sin color de
+   marca, solo grises súper oscuros. Máximo contraste y foco.
+   ================================================================ */
+.negro-puro {
+  /* Brand — blanco puro para máximo contraste */
+  --brand-primary: #ffffff;
+  --brand-primary-hover: #e0e0e0;
+  --brand-primary-subtle: rgba(255, 255, 255, 0.04);
+  --brand-accent: #e8e8e8;
+  --brand-accent-hover: #ffffff;
+  --brand-accent-glow: rgba(255, 255, 255, 0.06);
+  --on-accent: #000000;
+
+  /* Backgrounds — TODO negro con variaciones mínimas */
+  --bg-base: #000000;
+  --bg-elevated: #0a0a0a;
+  --bg-surface: #111111;
+  --bg-overlay: #1a1a1a;
+
+  /* Text — solo 3 grises puros */
+  --text-primary: #f5f5f5;
+  --text-secondary: #777777;
+  --text-disabled: #3a3a3a;
+
+  /* Borders — casi invisibles */
+  --border-default: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Semantic states - Vibrant */
+  --color-success: #00d66f;
+  --color-success-bg: rgba(0, 214, 111, 0.10);
+  --color-success-border: rgba(0, 214, 111, 0.20);
+  --color-warning: #f5a623;
+  --color-warning-bg: rgba(245, 166, 35, 0.10);
+  --color-warning-border: rgba(245, 166, 35, 0.20);
+  --color-error: #ea2261;
+  --color-error-bg: rgba(234, 34, 97, 0.10);
+  --color-error-border: rgba(234, 34, 97, 0.20);
+  --color-info: #4ea7fc;
+  --color-info-bg: rgba(78, 167, 252, 0.10);
+  --color-info-border: rgba(78, 167, 252, 0.20);
+
+  --scrollbar-color: rgba(255,255,255,0.06);
+  --scrollbar-color-hover: rgba(255,255,255,0.12);
+}
+
+@layer base {
+  * {
+    border-color: var(--border-default);
+  }
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-color) transparent;
+    scroll-behavior: smooth;
+  }
+  html::-webkit-scrollbar { width: var(--scrollbar-size); height: var(--scrollbar-size); }
+  html::-webkit-scrollbar-track { background: transparent; }
+  html::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-color);
+    border-radius: var(--radius-full);
+  }
+  html::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-color-hover); }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-inter);
+    font-size: var(--text-size-base);
+    line-height: 1.6;
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--brand-primary-subtle);
+    color: var(--text-primary);
+  }
+
+  /* Focus visible — accessibility */
+  *:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* Headings — negative letter spacing for premium feel */
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.022em;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+}
+
+/* ================================================================
+   PREMIUM COMPONENT UTILITIES
+   ================================================================ */
+@layer components {
+  /* Glassmorphism — floating elements only */
+  .glass {
+    background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Cristal-tinted badge pattern */
+  .badge-tinted {
+    background: var(--tint-bg, var(--bg-overlay));
+    color: var(--tint-fg, var(--text-secondary));
+    border: 1px solid var(--tint-border, var(--border-default));
+  }
+
+  /* Data-dense table — compact rows */
+  .table-dense th {
+    padding: 5px 10px;
+    font-size: var(--text-size-micro);
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: left;
+    border-bottom: 1px solid var(--border-default);
+    white-space: nowrap;
+  }
+  .table-dense td {
+    padding: 4px 10px;
+    font-size: var(--text-size-small);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-default);
+    vertical-align: middle;
+  }
+  .table-dense tbody tr {
+    transition: background-color var(--duration-fast) var(--ease-snappy);
+  }
+  .table-dense tbody tr:hover {
+    background: var(--bg-overlay);
+  }
+
+  /* Monospace numerics */
+  .num {
+    font-family: var(--font-fira);
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+    letter-spacing: -0.02em;
+  }
+
+  /* Subtle gradient border card */
+  .card-hover {
+    transition: var(--transition-normal);
+  }
+  .card-hover:hover {
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-stripe-md);
+  }
+
+  /* Premium KPI value */
+  .kpi-value {
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Section eyebrow label */
+  .eyebrow {
+    font-size: var(--text-size-micro);
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-fade-in { animation: fade-in var(--duration-regular) var(--ease-out-cubic); }
+.animate-pulse-soft { animation: pulse-soft 2s var(--ease-out-cubic) infinite; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-overlay) 0%,
+    var(--bg-elevated) 50%,
+    var(--bg-overlay) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s var(--ease-snappy) infinite;
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-29T17:42:00Z",
+  "title": "Design System: SelectIA",
+  "extensions": {
+    "colorMeta": {
+      "brand-primary": { "role": "primary", "displayName": "Near Black Primary", "canonical": "#1a1a1a", "tonalRamp": ["#e6e6e6", "#cccccc", "#b3b3b3", "#999999", "#808080", "#4d4d4d", "#333333", "#1a1a1a"] },
+      "brand-accent": { "role": "secondary", "displayName": "Dark Gray Accent", "canonical": "#2a2a2a", "tonalRamp": ["#e8e8e8", "#d1d1d1", "#bababa", "#a3a3a3", "#8c8c8c", "#5c5c5c", "#454545", "#2a2a2a"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "KPI values and hero metrics." },
+      "body": { "displayName": "Body", "purpose": "Standard paragraph text." },
+      "label": { "displayName": "Label / Mono", "purpose": "Numbers, metrics, and code snippets." }
+    },
+    "shadows": [
+      { "name": "shadow-hover", "value": "0 6px 12px -2px rgba(0,0,0,0.04)", "purpose": "Subtle shadow used when hovering over interactive cards." },
+      { "name": "shadow-focus-glow", "value": "0 0 0 3px rgba(0, 0, 0, 0.06)", "purpose": "Ambient glow for keyboard focus rings." }
+    ],
+    "motion": [
+      { "name": "transition-normal", "value": "all 150ms cubic-bezier(0.215, 0.61, 0.355, 1.0)", "purpose": "Standard hover and state transition." },
+      { "name": "ease-out-cubic", "value": "cubic-bezier(0.215, 0.61, 0.355, 1.0)", "purpose": "Smooth exit easing." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Primary content container.",
+      "html": "<div class=\"ds-card\"><h3>Metric</h3><p>Value</p></div>",
+      "css": ".ds-card { background: #fafafa; color: #111111; border-radius: 12px; border: 1px solid rgba(0,0,0,0.05); padding: 16px; transition: all 150ms cubic-bezier(0.215, 0.61, 0.355, 1.0); } .ds-card:hover { transform: translateY(-1px); box-shadow: 0 6px 12px -2px rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.10); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Blanco Puro Absoluto",
+    "overview": "SelectIA is a dense, high-contrast, premium data dashboard. While it supports 4 themes (Linear Dark, Linear Light, Pure Black), its primary soul and default state is Blanco Puro (Pure White). This theme is characterized by extreme minimalism, removing all brand color in favor of soft, near-black grays. The interface relies almost entirely on whitespace, microscopic contrast shifts (whites and #fafafa), and crisp typography to create a sense of absolute clarity and clinical precision.",
+    "keyCharacteristics": [
+      "Blanco Puro Default: A nearly all-white canvas where depth is achieved through ultra-subtle off-whites rather than shadows.",
+      "Colorless Brand: The primary accent is a soft near-black (#1a1a1a). Saturated colors are banished from the UI chrome and exist solely in the data visualizations.",
+      "Micro-Typography: Heavy reliance on small, uppercase, widely tracked eyebrow labels, and monospace numerics for data metrics."
+    ],
+    "rules": [
+      { "name": "The Colorless Chrome Rule", "body": "The interface chrome itself must never use a saturated color. Buttons, active states, and backgrounds are strictly grayscale. Color is a privilege reserved exclusively for charts and semantic status dots (success/error).", "section": "colors" },
+      { "name": "The Monospace Metric Rule", "body": "All numeric data points, scores, and prices must use the monospace font (Fira Code) with tabular numerals (tnum) enabled to ensure vertical alignment in tables and cards.", "section": "typography" },
+      { "name": "The Flat Canvas Rule", "body": "Cards and containers at rest do not cast shadows. Shadows are exclusively reserved for interactive states (hover) and high-z-index overlays (dialogs, tooltips).", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use var(--text-secondary) for all non-critical text to reduce cognitive load.",
+      "Do align numeric columns to the right and use the num utility class."
+    ],
+    "donts": [
+      "Don't use pure black #000000 for text; stick to #111111 to keep the extreme contrast manageable.",
+      "Don't introduce colored backgrounds anywhere in the layout chrome."
+    ]
+  }
+}

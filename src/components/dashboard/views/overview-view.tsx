@@ -1,0 +1,913 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useEffectiveDashboardData } from "@/hooks/use-effective-dashboard-data";
+import { useDashboardStore, PROFILES } from "@/store/dashboard-store";
+import { getCurrencyByCode, formatPrice, getIntelligenceColor, getEloColor, formatVotes } from "@/lib/format";
+import { computeBlendedUsd } from "@/lib/format";
+import { ProviderLogo } from "../provider-logo";
+import { LicenseBadge } from "../model-badges";
+import {
+  Sparkles,
+  Search,
+  ArrowRight,
+  TrendingUp,
+  DollarSign,
+  Brain,
+  Trophy,
+  Zap,
+  Database,
+  Clock,
+  ArrowUpRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ScatterChart,
+  Scatter,
+  XAxis,
+  YAxis,
+  ZAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  LabelList,
+  LineChart,
+  Line,
+  Legend,
+} from "recharts";
+import { cn } from "@/lib/utils";
+import type { AIModel, CurrencyRate } from "@/lib/types";
+import { OperarioView } from "./operario-view";
+import { CalculadoraView } from "./calculadora-view";
+import { ConsultorView } from "./consultor-view";
+import { SaludView } from "./salud-view";
+import { GerenteView } from "./gerente-view";
+
+const EXAMPLE_QUERIES = [
+  "Redactar correo a cliente sobre demora en entrega",
+  "Analizar manual técnico CNC de 300 páginas",
+  "Generar G-code para fresado de bridas",
+  "Calcular ROI de automatizar cotizaciones",
+  "Traducir especificación técnica al inglés",
+];
+
+export function OverviewView() {
+  const { profile } = useDashboardStore();
+  const currentProfile = PROFILES.find((p) => p.id === profile)!;
+
+  // PRD Parte 2: "El dashboard se adapta a quién lo está usando. Cada perfil
+  // activa un conjunto específico de columnas, gráficos y KPIs." The Resumen
+  // (Overview) re-renders with a profile-specific layout instead of being a
+  // separate nav item. Layouts:
+  //   A Ingeniero      → search-cards (hero search + 3 quick recs + KPIs + scatter)
+  //   B Gerente        → kpis-charts (4 KPIs + scatter + Top 5 Elo bars)
+  //   C Consultor      → pivot-legal (provider pivot + legal notes + export)
+  //   D TI              → system (status banner + AA quota + sources + offline)
+  //   E Operario       → big-cards (3 huge colorful cards, zero tables)
+  //   F Compras        → budget (budget calculator + cost table + alerts)
+  const layout = currentProfile.overviewLayout;
+
+  // Defer to the profile-specific component for layouts that have a dedicated
+  // implementation. The default "search-cards" (Ingeniero) renders inline below.
+  if (layout === "big-cards") return <OperarioOverview />;
+  if (layout === "budget") return <ComprasOverview />;
+  if (layout === "pivot-legal") return <ConsultorOverview />;
+  if (layout === "system") return <SystemOverview />;
+  if (layout === "kpis-charts") return <GerenteOverview />;
+  // "search-cards" (A Ingeniero) renders inline below.
+  return <IngenieroOverview />;
+}
+
+function IngenieroOverview() {
+  const { data, isLoading } = useEffectiveDashboardData();
+  const {
+    profile,
+    currency,
+    operationMode,
+    setActiveView,
+    setRecommendationQuery,
+  } = useDashboardStore();
+
+  const [query, setQuery] = useState("");
+
+  const currencyMeta = data ? getCurrencyByCode(data.currencies, currency) : null;
+  const currentProfile = PROFILES.find((p) => p.id === profile)!;
+
+  const kpis = useMemo(() => {
+    if (!data) return null;
+    const models = data.models;
+    const commercialOpen = models.filter(
+      (m) => m.license === "commercial-open" || m.license === "open-source-full"
+    ).length;
+    const mostIntelligent = [...models]
+      .filter((m) => m.intelligenceIndex !== null)
+      .sort((a, b) => (b.intelligenceIndex ?? 0) - (a.intelligenceIndex ?? 0))[0];
+    const cheapest = [...models]
+      .filter((m) => m.priceInputUsd !== null && m.priceInputUsd > 0)
+      .sort((a, b) => (a.priceInputUsd ?? 0) - (b.priceInputUsd ?? 0))[0];
+    const fastest = [...models]
+      .filter((m) => m.speedTps !== null)
+      .sort((a, b) => (b.speedTps ?? 0) - (a.speedTps ?? 0))[0];
+    return {
+      total: models.length,
+      commercialOpen,
+      mostIntelligent,
+      cheapest,
+      fastest,
+    };
+  }, [data]);
+
+  const scatterData = useMemo(() => {
+    if (!data) return [];
+    return data.models
+      .filter(
+        (m) =>
+          m.intelligenceIndex !== null &&
+          (m.priceInputUsd !== null || m.freeAccess === "free-100")
+      )
+      .map((m) => {
+        const blended = computeBlendedUsd(m) || 0.01;
+        return {
+          x: m.intelligenceIndex,
+          y: Math.log10(blended), // pre-compute log10 — Recharts log scale is buggy
+          rawPrice: blended, // keep raw for tooltip
+          z: m.speedTps ?? 50,
+          name: m.name,
+          provider: m.provider,
+          color: m.providerColor || "#5e6ad2",
+          free: m.freeAccess === "free-100" || blended === 0,
+        };
+      });
+  }, [data]);
+
+  // Gráfico 7: Adopción vs Calidad scatter data
+  // Pre-compute log10 of downloads — Recharts log scale on ScatterChart is buggy
+  // (points render outside the viewport or don't render at all). Using a linear
+  // axis with pre-computed log10 values is the reliable approach.
+  const adoptionData = useMemo(() => {
+    if (!data) return [];
+    return data.models
+      .filter((m) => m.hfDownloads != null && m.hfDownloads > 0 && m.intelligenceIndex != null)
+      .map((m) => ({
+        x: Math.log10(m.hfDownloads!), // log10 for linear axis
+        rawDownloads: m.hfDownloads!, // keep raw for tooltip
+        y: m.intelligenceIndex!,
+        z: m.hfLikes ?? 10,
+        name: m.name,
+        provider: m.provider,
+        color: m.providerColor || "#5e6ad2", // fallback color
+        likes: m.hfLikes ?? 0,
+      }))
+      .sort((a, b) => b.rawDownloads - a.rawDownloads)
+      .slice(0, 80);
+  }, [data]);
+
+  const eloData = useMemo(() => {
+    if (!data) return [];
+    return [...data.models]
+      .filter((m) => m.elo !== null)
+      .sort((a, b) => (b.elo ?? 0) - (a.elo ?? 0))
+      .slice(0, 10)
+      .map((m) => ({
+        name: m.name.length > 22 ? m.name.slice(0, 20) + "…" : m.name,
+        fullName: m.name,
+        elo: m.elo,
+        votes: m.eloVotes,
+        color: getEloColor(m.elo),
+      }));
+  }, [data]);
+
+  const handleSearch = (q?: string) => {
+    const finalQuery = q ?? query;
+    if (!finalQuery.trim()) return;
+    setRecommendationQuery(finalQuery);
+    setActiveView("recomendador");
+  };
+
+  if (isLoading || !data || !currencyMeta) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-40 w-full" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+        <Skeleton className="h-80" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Hero search */}
+      <section className="relative overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 lg:p-8">
+        <div
+          className="absolute inset-0 opacity-60 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(600px circle at 15% 0%, var(--brand-primary-subtle), transparent 50%), radial-gradient(500px circle at 85% 100%, var(--brand-accent-glow), transparent 50%)",
+          }}
+        />
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Badge
+              variant="outline"
+              className="gap-1 border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-primary-subtle)]"
+            >
+              <Sparkles className="h-3 w-3" />
+              Motor HRE-TOPSIS · 5 capas
+            </Badge>
+            <span className="text-xs text-[var(--text-secondary)]">
+              Clasifica tu tarea, filtra, pondera con AHP y rankea con TOPSIS en &lt;100ms
+            </span>
+          </div>
+          <h1 className="text-2xl lg:text-3xl font-semibold tracking-[-0.022em] text-[var(--text-primary)] mb-2">
+            ¿Qué quieres hacer hoy?
+          </h1>
+          <p className="text-sm text-[var(--text-secondary)] mb-5 max-w-2xl">
+            Describe tu tarea en lenguaje natural. El motor recomienda los 3 mejores modelos
+            de IA para tu perfil ({currentProfile.name}) y modo ({operationMode}).
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 max-w-2xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--text-secondary)]" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                placeholder="Ej: redactar correo, calcular costos, analizar planos…"
+                className="h-12 pl-10 pr-4 text-base bg-[var(--bg-elevated)] border-[var(--border-strong)] rounded-xl"
+              />
+            </div>
+            <Button
+              onClick={() => handleSearch()}
+              size="lg"
+              className="h-12 px-6 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-[var(--on-accent)]"
+            >
+              Recomendar
+              <ArrowRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-4">
+            {EXAMPLE_QUERIES.map((ex) => (
+              <button
+                key={ex}
+                onClick={() => {
+                  setQuery(ex);
+                  handleSearch(ex);
+                }}
+                className="rounded-full border border-[var(--border-default)] bg-[var(--bg-elevated)] px-3 py-1 text-xs text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* KPI cards */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <KpiCard
+          icon={Database}
+          label="Modelos comparados"
+          value={kpis!.total.toString()}
+          sub={`${data?.sources?.length ?? 13} fuentes combinadas`}
+          color="var(--brand-primary)"
+        />
+        <KpiCard
+          icon={Brain}
+          label="Más inteligente hoy"
+          value={kpis!.mostIntelligent?.intelligenceIndex?.toFixed(1) ?? "—"}
+          sub={kpis!.mostIntelligent?.name ?? ""}
+          color="var(--color-indigo)"
+          isIndex
+        />
+        <KpiCard
+          icon={Zap}
+          label="Más rápido"
+          value={kpis!.fastest ? `${kpis!.fastest.speedTps}` : "—"}
+          sub={kpis!.fastest?.name ?? ""}
+          color="var(--color-warning)"
+          unit="tok/s"
+        />
+        <KpiCard
+          icon={TrendingUp}
+          label="Licencia comercial libre"
+          value={kpis!.commercialOpen.toString()}
+          sub={`de ${kpis!.total} modelos`}
+          color="var(--color-success)"
+        />
+      </section>
+
+      {/* Charts */}
+      <section className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <Card className="lg:col-span-3 bg-[var(--bg-surface)] border-[var(--border-default)]">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-semibold tracking-tight">
+                  Inteligencia vs Precio
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Cada punto es un modelo · tamaño = velocidad · color = proveedor
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] shrink-0">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-sm bg-[var(--color-success)]" /> Gratis
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-[var(--brand-accent)]" /> Pago
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320} debounce={50}>
+              <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+                <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
+                <XAxis
+                  type="number"
+                  dataKey="x"
+                  name="Intelligence Index"
+                  domain={[20, 60]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  label={{
+                    value: "Intelligence Index v4.1",
+                    position: "insideBottom",
+                    offset: -10,
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                  }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  name="Precio USD/M (log10)"
+                  domain={[-2, 2.5]}
+                  ticks={[-2, -1, 0, 1, 2]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  tickFormatter={(v) => {
+                    const real = Math.pow(10, v);
+                    if (real >= 10) return `$${real.toFixed(0)}`;
+                    if (real >= 1) return `$${real.toFixed(0)}`;
+                    return real.toFixed(2);
+                  }}
+                  width={48}
+                />
+                <ZAxis type="number" dataKey="z" range={[40, 400]} />
+                <RechartsTooltip
+                  cursor={{ strokeDasharray: "3 3", stroke: "var(--border-strong)" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload as (typeof scatterData)[0];
+                    return (
+                      <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                        <div className="font-semibold text-[var(--text-primary)] mb-1">
+                          {d.name}
+                        </div>
+                        <div className="text-[var(--text-secondary)] space-y-0.5">
+                          <div>II: <span className="num text-[var(--text-primary)]">{d.x}</span></div>
+                          <div>Blended: <span className="num text-[var(--text-primary)]">${d.rawPrice.toFixed(2)}/M</span></div>
+                          <div>Vel: <span className="num text-[var(--text-primary)]">{d.z} tok/s</span></div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Scatter data={scatterData} isAnimationActive={false}>
+                  {scatterData.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={entry.free ? "var(--color-success)" : entry.color}
+                      fillOpacity={0.7}
+                      stroke={entry.free ? "var(--color-success)" : entry.color}
+                      strokeWidth={1}
+                    />
+                  ))}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 bg-[var(--bg-surface)] border-[var(--border-default)]">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
+              <Trophy className="h-4 w-4 text-[var(--color-warning)]" />
+              Top 10 por preferencia humana
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Elo Arena AI · votación ciega de humanos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={320} debounce={50}>
+              <BarChart
+                data={eloData}
+                layout="vertical"
+                margin={{ top: 4, right: 32, left: 8, bottom: 4 }}
+              >
+                <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" horizontal={false} />
+                <XAxis
+                  type="number"
+                  domain={[1200, 1600]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  width={120}
+                />
+                <RechartsTooltip
+                  cursor={{ fill: "var(--bg-overlay)" }}
+                  isAnimationActive={false}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload as (typeof eloData)[0];
+                    return (
+                      <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs">
+                        <div className="font-semibold text-[var(--text-primary)]">{d.fullName}</div>
+                        <div className="text-[var(--text-secondary)] mt-0.5">
+                          Elo <span className="num text-[var(--text-primary)]">{d.elo}</span> ·{" "}
+                          <span className="num">{formatVotes(d.votes)}</span> votos
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Bar dataKey="elo" radius={[0, 3, 3, 0]} barSize={18} isAnimationActive={false}>
+                  {eloData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                  <LabelList
+                    dataKey="elo"
+                    position="right"
+                    style={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                    className="num"
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Cheapest + fastest quick row */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <QuickModelCard
+          title="Más económico con pago"
+          icon={DollarSign}
+          color="var(--color-success)"
+          model={kpis!.cheapest}
+          currencyMeta={currencyMeta}
+        />
+        <QuickModelCard
+          title="Más rápido en inferencia"
+          icon={Zap}
+          color="var(--color-warning)"
+          model={kpis!.fastest}
+          currencyMeta={currencyMeta}
+        />
+      </section>
+
+      {/* Gráfico 7: Adopción vs Calidad — scatter downloads (log) vs Intelligence Index */}
+      {adoptionData.length > 0 && (
+        <section className="grid grid-cols-1 gap-4">
+          <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-semibold tracking-tight">
+                    Adopción vs Calidad
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Downloads HuggingFace (log) vs Intelligence Index · "Zona de Confianza" = alta calidad + alta adopción
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300} debounce={50}>
+                <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+                  <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
+                  <XAxis
+                    type="number"
+                    dataKey="x"
+                    name="Downloads (log10)"
+                    domain={[2, 7]}
+                    ticks={[2, 3, 4, 5, 6, 7]}
+                    tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--border-default)" }}
+                    tickFormatter={(v) => {
+                      const real = Math.pow(10, v);
+                      if (real >= 1000000) return `${(real / 1000000).toFixed(0)}M`;
+                      if (real >= 1000) return `${(real / 1000).toFixed(0)}K`;
+                      return String(real);
+                    }}
+                    label={{ value: "Downloads (escala log)", position: "insideBottom", offset: -10, fill: "var(--text-secondary)", fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="number"
+                    dataKey="y"
+                    name="Intelligence Index"
+                    domain={[0, 60]}
+                    tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "var(--border-default)" }}
+                    width={40}
+                  />
+                  <ZAxis type="number" dataKey="z" range={[40, 400]} />
+                  <RechartsTooltip
+                    cursor={{ strokeDasharray: "3 3", stroke: "var(--border-strong)" }}
+                    isAnimationActive={false}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload as { name: string; provider: string; color: string; rawDownloads: number; y: number; likes: number };
+                      return (
+                        <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                          <div className="font-semibold text-[var(--text-primary)] mb-1">{d.name}</div>
+                          <div className="text-[var(--text-secondary)]">{d.provider}</div>
+                          <div className="num mt-1">⬇ {d.rawDownloads >= 1000 ? `${(d.rawDownloads / 1000).toFixed(1)}K` : d.rawDownloads} downloads</div>
+                          <div className="num">♥ {d.likes} likes</div>
+                          <div className="num">II: {d.y}</div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Scatter data={adoptionData} isAnimationActive={false}>
+                    {adoptionData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} fillOpacity={0.65} stroke={entry.color} strokeWidth={1} />
+                    ))}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Gráfico 8: Evolución de Precios de LLMs — BenchLM Token Price Index
+          41 meses (marzo 2023 → julio 2026), base 2023-03 = 100.
+          3 tiers: frontier (modelos top), mid (calidad media), budget (económicos). */}
+      {data.priceIndex && data.priceIndex.length > 0 && (
+        <section className="grid grid-cols-1 gap-4">
+          <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
+                    <TrendingUp className="h-4 w-4 text-[var(--brand-primary)]" />
+                    Evolución de Precios de LLMs (BenchLM Token Price Index)
+                    <span
+                      className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold cursor-help"
+                      style={{ backgroundColor: "var(--bg-overlay)", color: "var(--text-secondary)" }}
+                      title="Frontier = modelos top-tier más caros (GPT-5.5, Claude Opus) · Mid = gama media (Claude Sonnet, Gemini Pro) · Budget = económicos (<$1/M). El índice base es marzo 2023 = 100. Frontier ha caído 88%."
+                    >
+                      i
+                    </span>
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Índice base marzo 2023 = 100 · {data.priceIndex.length} meses ·{" "}
+                    <span title="Modelos top-tier más caros y capaces (GPT-5.5, Claude Opus). Han caído 88% desde marzo 2023." className="cursor-help underline decoration-dotted">frontier</span>{" / "}
+                    <span title="Modelos de gama media, balance precio-calidad (Claude Sonnet, Gemini Pro)." className="cursor-help underline decoration-dotted">mid</span>{" / "}
+                    <span title="Modelos económicos (<$1/M tokens). Precios estables." className="cursor-help underline decoration-dotted">budget</span>
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+            <ResponsiveContainer width="100%" height={300} debounce={50}>
+              <LineChart
+                data={data.priceIndex}
+                margin={{ top: 8, right: 24, bottom: 16, left: 4 }}
+              >
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  minTickGap={20}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border)" }}
+                  width={32}
+                  label={{
+                    value: "Índice (base 100)",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 18,
+                    fill: "var(--text-secondary)",
+                    fontSize: 10,
+                  }}
+                />
+                <RechartsTooltip
+                  isAnimationActive={false}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload as {
+                      month: string;
+                      frontier: number | null;
+                      frontierMedian: number | null;
+                      mid: number | null;
+                      midMedian: number | null;
+                      budget: number | null;
+                      budgetMedian: number | null;
+                    };
+                    if (!d) return null;
+                    return (
+                      <div className="rounded-lg border bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[260px]" style={{ borderColor: "var(--border)" }}>
+                        <div className="font-semibold text-[var(--text-primary)] mb-1.5">
+                          {label}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="frontier" title="Tier frontier" style={{ backgroundColor: "var(--color-error)" }} />
+                              Frontier
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.frontier != null ? d.frontier.toFixed(1) : "—"}
+                              {d.frontierMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.frontierMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="mid" title="Tier mid" style={{ backgroundColor: "var(--color-warning)" }} />
+                              Mid
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.mid != null ? d.mid.toFixed(1) : "—"}
+                              {d.midMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.midMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="budget" title="Tier budget" style={{ backgroundColor: "var(--color-success)" }} />
+                              Budget
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.budget != null ? d.budget.toFixed(1) : "—"}
+                              {d.budgetMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.budgetMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
+                  iconType="circle"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="frontier"
+                  name="Frontier"
+                  stroke="var(--color-error)"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="mid"
+                  name="Mid"
+                  stroke="var(--color-warning)"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="budget"
+                  name="Budget"
+                  stroke="var(--color-success)"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="mt-2 text-[10px] text-[var(--text-secondary)]">
+              Fuente:{" "}
+              <a
+                href="https://benchlm.ai/stats/llm-pricing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--brand-primary)] hover:underline"
+              >
+                BenchLM Token Price Index — base marzo 2023 = 100
+              </a>
+              {" · "}Mediana blended = precio promedio del tier (USD por 1M tokens, input+output combinados).
+            </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Data freshness */}
+      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <Clock className="h-3.5 w-3.5" />
+          Última sincronización del orquestador:{" "}
+          <span className="num text-[var(--text-primary)]">
+            {new Date(data.generatedAt).toLocaleString("es-PE", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </span>
+        </div>
+        <button
+          onClick={() => setActiveView("salud")}
+          className="flex items-center gap-1 text-xs font-medium text-[var(--brand-primary)] hover:underline"
+        >
+          Ver salud del sistema
+          <ArrowUpRight className="h-3 w-3" />
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color,
+  unit,
+  isIndex,
+}: {
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  label: string;
+  value: string;
+  sub: string;
+  color: string;
+  unit?: string;
+  isIndex?: boolean;
+}) {
+  return (
+    <Card className="bg-[var(--bg-surface)] border-[var(--border-default)] card-hover overflow-hidden">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-lg"
+            style={{ backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` }}
+          >
+            <Icon className="h-4 w-4" style={{ color }} />
+          </span>
+        </div>
+        <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-secondary)] mb-1">
+          {label}
+        </div>
+        <div className="flex items-baseline gap-1">
+          <span
+            className={cn("kpi-value num", isIndex && "text-[var(--color-indigo)]")}
+            style={!isIndex ? { color } : undefined}
+          >
+            {value}
+          </span>
+          {unit && (
+            <span className="text-xs text-[var(--text-secondary)]">{unit}</span>
+          )}
+        </div>
+        <div className="text-xs text-[var(--text-secondary)] mt-1 truncate" title={sub}>
+          {sub}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuickModelCard({
+  title,
+  icon: Icon,
+  color,
+  model,
+  currencyMeta,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  color: string;
+  model: AIModel | undefined;
+  currencyMeta: CurrencyRate;
+}) {
+  if (!model) return null;
+  return (
+    <Card className="bg-[var(--bg-surface)] border-[var(--border-default)] card-hover">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-1.5 mb-3">
+          <Icon className="h-3.5 w-3.5" style={{ color }} />
+          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-secondary)]">
+            {title}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <ProviderLogo model={model} size={36} />
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-sm truncate">{model.name}</div>
+            <div className="text-xs text-[var(--text-secondary)]">{model.provider}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+          {model.priceInputUsd !== null && (
+            <span className="num">
+              {formatPrice(model.priceInputUsd, currencyMeta)} /M input
+            </span>
+          )}
+          {model.speedTps !== null && (
+            <span className="num text-[var(--text-secondary)]">
+              {model.speedTps} tok/s
+            </span>
+          )}
+          <LicenseBadge license={model.license} licenseName={model.licenseName} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Profile-specific Overview wrappers.
+// PRD Parte 2: "El dashboard se adapta a quién lo está usando." Each profile
+// gets a distinct Resumen layout. These wrappers delegate to the existing
+// profile components (which were previously separate nav items) so we reuse
+// all their logic without duplication.
+// ---------------------------------------------------------------------------
+
+function OperarioOverview() {
+  return <OperarioView />;
+}
+
+function ComprasOverview() {
+  // Perfil F (Compras / Costos) — per user request, the Compras profile
+  // redirects to the Calculadora view (which already has model selection,
+  // budget projection, cache ROI, and budget alerts). The Compras view
+  // (full cost table dominated by $0 free models) is no longer the default
+  // landing for this profile. If the user clicks "Resumen" while on the
+  // Compras profile, we still show the Calculadora for consistency.
+  return <CalculadoraView />;
+}
+
+function ConsultorOverview() {
+  return <ConsultorView />;
+}
+
+function SystemOverview() {
+  // Perfil D (TI) — the Salud view IS the system overview. Delegate to it.
+  return <SaludView />;
+}
+
+function GerenteOverview() {
+  // Perfil B (Gerente) — KPIs + scatter + Top 5 Elo bars layout.
+  return <GerenteView />;
+}
