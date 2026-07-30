@@ -117,12 +117,6 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
         </a>
       </div>
 
-      {/* Description */}
-      {model.orDescription && (
-        <p className="text-sm text-[var(--text-secondary)] leading-relaxed border-l-2 border-[var(--border-default)] pl-3">
-          {model.orDescription}
-        </p>
-      )}
 
       {/* Specs Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -315,15 +309,20 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
 
       {/* Supported Parameters */}
       {hasParams && (
-        <div className="space-y-2 pt-2">
-          <div className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4 text-[var(--text-secondary)]" />
-            <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Parámetros Soportados</h5>
+        <details className="group pt-2">
+          <summary className="flex items-center gap-2 cursor-pointer list-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors select-none">
+            <Settings2 className="h-4 w-4" />
+            <h5 className="text-xs font-semibold uppercase tracking-wider">Ver Parámetros Soportados de API</h5>
+          </summary>
+          <div className="mt-3 pl-6 border-l-2 border-[var(--border-default)]">
+            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+              {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
+            </p>
+            <p className="text-xs text-[var(--text-disabled)] mt-2">
+              Estos son los parámetros técnicos que la API de OpenRouter acepta al llamar a este modelo (útil para integración en código).
+            </p>
           </div>
-          <p className="text-sm text-[var(--text-secondary)] leading-relaxed pl-1">
-            {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
-          </p>
-        </div>
+        </details>
       )}
 
       {/* Meta Footer */}
