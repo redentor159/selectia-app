@@ -300,12 +300,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     color="var(--color-success)"
                     description="Adopción de desarrolladores construyendo en el ecosistema HuggingFace"
                   >
-                    <div className="grid grid-cols-1 gap-x-8 gap-y-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                       <CompactHFRow
                         icon={Boxes}
                         label="Spaces"
                         value={details.spaces > 0 ? `${details.spaces} apps` : "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
+                        tooltip={<><div className="font-semibold mb-1">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
                       />
                       <CompactHFRow
                         icon={Server}
@@ -315,7 +315,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                           details.inference === "cold" ? <span className="flex items-center gap-1 justify-end text-[var(--text-secondary)]"><Timer className="h-3 w-3" /> Cold</span> :
                           "—"
                         }
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Disponibilidad de infraestructura gratuita en HF</div>Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor.</>}
+                        tooltip={<><div className="font-semibold mb-1">Disponibilidad de infraestructura gratuita en HF</div>Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor.</>}
                       />
                     </div>
                     {details.spacesSample && details.spacesSample.length > 0 && (
@@ -344,24 +344,24 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     color="var(--brand-primary)"
                     description="Descargas (acumulado) vs trendingScore (velocidad reciente)"
                   >
-                    <div className="grid grid-cols-1 gap-x-6 gap-y-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                       <CompactHFRow
                         icon={Download}
                         label="Downloads"
                         value={details.downloads != null ? details.downloads.toLocaleString("es-PE") : "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
+                        tooltip={<><div className="font-semibold mb-1">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
                       />
                       <CompactHFRow
                         icon={Heart}
                         label="Likes"
                         value={details.likes != null ? details.likes.toLocaleString("es-PE") : "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
+                        tooltip={<><div className="font-semibold mb-1">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
                       />
                       <CompactHFRow
                         icon={Flame}
                         label="Trending Score"
                         value={details.trendingScore != null ? details.trendingScore.toFixed(1) : "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Velocidad reciente</div>Un puntaje algorítmico de HuggingFace que mide el momentum actual del modelo. Un score alto indica que el modelo es tendencia hoy.</>}
+                        tooltip={<><div className="font-semibold mb-1">Velocidad reciente</div>Un puntaje algorítmico de HuggingFace que mide el momentum actual del modelo. Un score alto indica que el modelo es tendencia hoy.</>}
                       />
                     </div>
                   </Section>
@@ -374,12 +374,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       color="var(--color-warning)"
                       description="Parámetros exactos por tipo de dato — para cálculo de VRAM"
                     >
-                      <div className="grid grid-cols-1 gap-x-6 gap-y-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                         <CompactHFRow
                           icon={Hash}
                           label="Parámetros totales"
                           value={details.safetensors.total ? formatParams(details.safetensors.total) : "—"}
-                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
+                          tooltip={<><div className="font-semibold mb-1">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
                         />
                         {details.safetensors.parameters && Object.entries(details.safetensors.parameters).map(([dtype, count]) => (
                           <CompactHFRow
@@ -387,7 +387,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                             icon={Hash}
                             label={`Precisión ${dtype}`}
                             value={formatParams(count)}
-                            tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{count.toLocaleString("es-PE")} parámetros</div>Cantidad de parámetros almacenados específicamente en la precisión '{dtype}'. Sirve para identificar modelos de precisión mixta o cuantizados nativamente.</>}
+                            tooltip={<><div className="font-semibold mb-1">{count.toLocaleString("es-PE")} parámetros</div>Cantidad de parámetros almacenados específicamente en la precisión '{dtype}'. Sirve para identificar modelos de precisión mixta o cuantizados nativamente.</>}
                           />
                         ))}
                         {details.siblings && (
@@ -400,7 +400,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                                 {details.siblings.files.some(f => f.endsWith(".gguf")) ? <Check className="h-3 w-3 text-[var(--color-success)]" /> : null}
                               </span>
                             }
-                            tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Distribución de archivos</div>Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards.</>}
+                            tooltip={<><div className="font-semibold mb-1">Distribución de archivos</div>Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards.</>}
                           />
                         )}
                       </div>
@@ -450,14 +450,14 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       icon={Library}
                       label="Library"
                       value={details.libraryName ?? "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Framework recomendado</div>La biblioteca de Python predeterminada recomendada para cargar y ejecutar este modelo.</>}
+                      tooltip={<><div className="font-semibold mb-1">Framework recomendado</div>La biblioteca de Python predeterminada recomendada para cargar y ejecutar este modelo.</>}
                     />
                     {details.transformersInfo?.processor && (
                       <CompactHFRow
                         icon={MessageSquare}
                         label="Processor"
                         value={details.transformersInfo.processor}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase del tokenizador</div>El pre-procesador o tokenizador requerido para convertir texto bruto en los tensores de entrada.</>}
+                        tooltip={<><div className="font-semibold mb-1">Clase del tokenizador</div>El pre-procesador o tokenizador requerido para convertir texto bruto en los tensores de entrada.</>}
                       />
                     )}
                     <CompactHFRow
@@ -465,13 +465,13 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       label="Commit SHA"
                       valueClassName="text-[11px] font-mono text-[var(--text-primary)] text-right"
                       value={details.sha ? details.sha.slice(0, 12) + "…" : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Para fijar versión</div>Commit SHA exacto de la versión principal. Fundamental usarlo como 'revision' al descargar el modelo en producción.</>}
+                      tooltip={<><div className="font-semibold mb-1">Para fijar versión</div>Commit SHA exacto de la versión principal. Fundamental usarlo como 'revision' al descargar el modelo en producción.</>}
                     />
                     <CompactHFRow
                       icon={HardDrive}
                       label="Used Storage"
                       value={details.usedStorage != null ? formatBytes(details.usedStorage) : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Espacio requerido en disco</div>Tamaño total real (en bytes) que ocuparán los archivos del modelo al descargarse en el disco de tu servidor. No incluye memoria RAM/VRAM de inferencia.</>}
+                      tooltip={<><div className="font-semibold mb-1">Espacio requerido en disco</div>Tamaño total real (en bytes) que ocuparán los archivos del modelo al descargarse en el disco de tu servidor. No incluye memoria RAM/VRAM de inferencia.</>}
                     />
                   </div>
 
@@ -481,7 +481,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       label="Architecture"
                       valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
                       value={details.config?.architectures?.[0] ?? details.config?.model_type ?? "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase base</div>La arquitectura algorítmica específica definida en config.json. Dicta cómo se estructuran las capas del modelo.</>}
+                      tooltip={<><div className="font-semibold mb-1">Clase base</div>La arquitectura algorítmica específica definida en config.json. Dicta cómo se estructuran las capas del modelo.</>}
                     />
                     {details.transformersInfo && (
                       <CompactHFRow
@@ -489,7 +489,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                         label="Auto Model"
                         valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
                         value={details.transformersInfo.auto_model ?? "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Clase exacta de Transformers</div>La clase específica de HuggingFace Transformers (ej. AutoModelForCausalLM) que debe importarse.</>}
+                        tooltip={<><div className="font-semibold mb-1">Clase exacta de Transformers</div>La clase específica de HuggingFace Transformers (ej. AutoModelForCausalLM) que debe importarse.</>}
                       />
                     )}
                   </div>
@@ -530,7 +530,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       icon={AlertCircle}
                       label="Disabled"
                       value={details.disabled === true ? <span className="flex items-center gap-1 text-[var(--color-error)] justify-end"><Ban className="h-3 w-3" /> Sí</span> : <span className="flex items-center gap-1 text-[var(--color-success)] justify-end"><Check className="h-3 w-3" /> No</span>}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">¿Repo deshabilitado?</div>Si es 'Sí', el autor ha marcado este repositorio como inactivo o roto, o HuggingFace lo ha deshabilitado por razones de seguridad. Nunca usar modelos disabled.</>}
+                      tooltip={<><div className="font-semibold mb-1">¿Repo deshabilitado?</div>Si es 'Sí', el autor ha marcado este repositorio como inactivo o roto, o HuggingFace lo ha deshabilitado por razones de seguridad. Nunca usar modelos disabled.</>}
                     />
                     <CompactHFRow
                       icon={Server}
@@ -540,21 +540,21 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                         details.gated === "auto" ? <span className="flex items-center gap-1 text-[var(--color-info)] justify-end"><Lock className="h-3 w-3" /> Auto</span> :
                         <span className="flex items-center gap-1 text-[var(--color-success)] justify-end"><Unlock className="h-3 w-3" /> Libre</span>
                       }
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Acceso: libre/auto/manual</div>Un modelo 'Gated' requiere que inicies sesión en HuggingFace y aceptes términos de licencia antes de descargarlo. 'Manual' requiere aprobación humana.</>}
+                      tooltip={<><div className="font-semibold mb-1">Acceso: libre/auto/manual</div>Un modelo 'Gated' requiere que inicies sesión en HuggingFace y aceptes términos de licencia antes de descargarlo. 'Manual' requiere aprobación humana.</>}
                     />
                     <CompactHFRow
                       icon={CheckCircle2}
                       label="Last Modified"
                       valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"
                       value={details.lastModified ? formatRelative(details.lastModified) : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{details.lastModified ? new Date(details.lastModified).toLocaleString("es-PE") : ""}</div>Fecha exacta del último commit o cambio en los archivos del repositorio. Modelos sin actualizaciones por más de 6 meses pueden estar obsoletos.</>}
+                      tooltip={<><div className="font-semibold mb-1">{details.lastModified ? new Date(details.lastModified).toLocaleString("es-PE") : ""}</div>Fecha exacta del último commit o cambio en los archivos del repositorio. Modelos sin actualizaciones por más de 6 meses pueden estar obsoletos.</>}
                     />
                     <CompactHFRow
                       icon={CheckCircle2}
                       label="Created"
                       valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"
                       value={details.createdAt ? formatRelative(details.createdAt) : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{details.createdAt ? new Date(details.createdAt).toLocaleString("es-PE") : ""}</div>Fecha de creación original del repositorio en HuggingFace Hub.</>}
+                      tooltip={<><div className="font-semibold mb-1">{details.createdAt ? new Date(details.createdAt).toLocaleString("es-PE") : ""}</div>Fecha de creación original del repositorio en HuggingFace Hub.</>}
                     />
                   </div>
                 </Section>
