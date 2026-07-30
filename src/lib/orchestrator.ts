@@ -3,7 +3,7 @@
 // merges results, caches 30 min, and pushes ntfy.sh alerts on failure.
 // ================================================================
 //
-// Sources (10 active — removed Aider #5 and Ollama #6 on 2026-07-30):
+// Sources (10 active — Aider #5 and Ollama #6, Helicone #8, Groq Status #9 removed 2026-07-30):
 //   1.  Artificial Analysis (Intelligence Index, pricing, speed)  [critical]
 //   2.  LiteLLM (cost map / context window)                      [critical]
 //   3.  Arena AI / wulong mirror (Elo + votes)                   [critical]
@@ -11,7 +11,7 @@
 //   5.  HuggingFace Hub (downloads, likes, gated, GGUF, params)  [enrichment]
 //   6.  Helicone (GitHub-hosted health check)                    [vanity]
 //   7.  Groq Status                                              [vanity]
-//   8.  OpenRouter (health check)                                [vanity — potential real]
+//   8.  OpenRouter (full catalog — pricing, modalities, reasoning, benchmarks) [enrichment]
 //   9.  Models.dev provider catalog (Profile C)
 //   10. BenchLM (8 category scores + price index + stats)
 //   11. ZeroEval (failure_rate + P95 latency + throughput)
@@ -1258,31 +1258,254 @@ async function applyHfEnrichment(models: AIModel[], enrichment: Map<string, HFMo
 
 // --- 10. OpenRouter health check --------------------------------
 
-async function fetchOpenRouterHealth(): Promise<SourceHealth> {
-  const url = "https://openrouter.ai/api/v1/models";
+// --- 10. OpenRouter — full model catalog enrichment (public API, no auth) ---
+// Fetches all 367 models from openrouter.ai/api/v1/models.
+// Provides: pricing, context, modalities, reasoning, benchmarks (AA indexes + Design Arena Elo),
+// HuggingFace IDs, knowledge cutoffs, expiration dates, supported parameters.
+// Match strategy: normalize(or_id.split('/')[1]) → normalize(model.name).
+
+interface ORPricingOverride {
+  min_prompt_tokens: number;
+  prompt?: string;
+  completion?: string;
+  input_cache_read?: string;
+  input_cache_write?: string;
+}
+
+interface ORModel {
+  id: string;
+  canonical_slug?: string;
+  hugging_face_id?: string | null;
+  name: string;
+  created?: number | null;
+  description?: string | null;
+  context_length?: number | null;
+  architecture?: {
+    modality?: string | null;
+    input_modalities?: string[] | null;
+    output_modalities?: string[] | null;
+    tokenizer?: string | null;
+    instruct_type?: string | null;
+  } | null;
+  pricing?: {
+    prompt?: string | null;
+    completion?: string | null;
+    input_cache_read?: string | null;
+    input_cache_write?: string | null;
+    web_search?: string | null;
+    overrides?: ORPricingOverride[] | null;
+  } | null;
+  top_provider?: {
+    context_length?: number | null;
+    max_completion_tokens?: number | null;
+    is_moderated?: boolean | null;
+  } | null;
+  supported_parameters?: string[] | null;
+  knowledge_cutoff?: string | null;
+  expiration_date?: string | null;
+  reasoning?: {
+    mandatory?: boolean | null;
+    default_enabled?: boolean | null;
+    supports_max_tokens?: boolean | null;
+    supported_efforts?: string[] | null;
+    default_effort?: string | null;
+  } | null;
+  benchmarks?: {
+    design_arena?: Array<{
+      arena: string;
+      category: string;
+      elo: number;
+      win_rate: number;
+      rank: number;
+    }> | null;
+    artificial_analysis?: {
+      intelligence_index?: number | null;
+      coding_index?: number | null;
+      agentic_index?: number | null;
+    } | null;
+  } | null;
+  alias_target?: { name?: string; slug?: string } | null;
+}
+
+interface OpenRouterEnrichmentData {
+  health: SourceHealth;
+  modelsMap: Map<string, ORModel>;  // keyed by normalizeForMatching(id.split('/')[1])
+}
+
+async function fetchOpenRouter(): Promise<OpenRouterEnrichmentData> {
+  const sourceId = "openrouter";
+  const sourceName = "OpenRouter";
   const start = Date.now();
+
   try {
-    const res = await fetchWithRetry(url, { retries: 1 });
+    const res = await fetchWithRetry("https://openrouter.ai/api/v1/models", { retries: 1 });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json: any = await res.json();
-    const modelCount = json.data?.length ?? 0;
+    if (!Array.isArray(json?.data)) throw new Error("unexpected response shape");
+
+    const modelsMap = new Map<string, ORModel>();
+    for (const item of json.data as ORModel[]) {
+      if (!item?.id) continue;
+      // Match key: the part after the provider prefix (e.g. "gpt-4o" from "openai/gpt-4o")
+      const slug = item.id.includes("/") ? item.id.split("/").slice(1).join("/") : item.id;
+      modelsMap.set(normalizeForMatching(slug), item);
+      // Also index by the full ID and by name for broader matching
+      modelsMap.set(normalizeForMatching(item.id), item);
+      if (item.canonical_slug) {
+        const canonSlug = item.canonical_slug.includes("/")
+          ? item.canonical_slug.split("/").slice(1).join("/")
+          : item.canonical_slug;
+        modelsMap.set(normalizeForMatching(canonSlug), item);
+      }
+    }
+
+    const aliasCount = (json.data as ORModel[]).filter(m => m.alias_target).length;
+    const reasoningCount = (json.data as ORModel[]).filter(m => m.reasoning).length;
+    const benchmarkCount = (json.data as ORModel[]).filter(m => m.benchmarks).length;
+
     return {
-      id: "openrouter",
-      name: "OpenRouter (cross-validación)",
-      status: "green",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `${modelCount} modelos en vivo`,
+      health: {
+        id: sourceId,
+        name: sourceName,
+        status: "green",
+        latencyMs: Date.now() - start,
+        lastSync: new Date().toISOString(),
+        note: `${(json.data as ORModel[]).length} modelos · ${benchmarkCount} con benchmarks · ${reasoningCount} con reasoning · ${aliasCount} aliases`,
+      },
+      modelsMap,
     };
   } catch (err) {
+    sendNtfyAlert("SelectIA: OpenRouter falló", String(err));
     return {
-      id: "openrouter",
-      name: "OpenRouter (cross-validación)",
-      status: "red",
-      latencyMs: Date.now() - start,
-      lastSync: new Date().toISOString(),
-      note: `Error: ${(err as Error).message}`,
+      health: {
+        id: sourceId,
+        name: sourceName,
+        status: "red",
+        latencyMs: Date.now() - start,
+        lastSync: new Date().toISOString(),
+        note: `Error: ${(err as Error).message}`,
+      },
+      modelsMap: new Map(),
     };
   }
+}
+
+function applyOpenRouterEnrichment(
+  models: AIModel[],
+  openrouter: { modelsMap: Map<string, ORModel> }
+): { matched: number; priceFallbacks: number; hfIdFallbacks: number } {
+  let matched = 0;
+  let priceFallbacks = 0;
+  let hfIdFallbacks = 0;
+
+  const toUsdPerMillion = (raw: string | null | undefined): number | null => {
+    if (raw == null) return null;
+    const n = parseFloat(raw);
+    return isNaN(n) ? null : n * 1_000_000;
+  };
+
+  for (const m of models) {
+    const key = normalizeForMatching(m.name);
+
+    // Try matching by model name first, then by id-based keys
+    let or = openrouter.modelsMap.get(key);
+    if (!or) {
+      // Try the other direction: iterate known OR slugs and fuzzy-match
+      for (const [orKey, orItem] of openrouter.modelsMap.entries()) {
+        if (namesMatch(orKey, m.name) || namesMatch(m.name, orItem.name)) {
+          or = orItem;
+          break;
+        }
+      }
+    }
+
+    if (!or) continue;
+    matched++;
+
+    // --- Identity fields ---
+    m.orModelId = or.id ?? null;
+    m.orCanonicalSlug = or.canonical_slug ?? null;
+    m.orName = or.name ?? null;
+    m.orDescription = or.description ?? null;
+    m.orCreatedAt = or.created ?? null;
+    m.orIsAlias = or.alias_target != null ? true : null;
+    m.orAliasTargetSlug = or.alias_target?.slug ?? null;
+
+    // --- Context and completion limits ---
+    m.orContextLength = or.context_length ?? or.top_provider?.context_length ?? null;
+    m.orMaxCompletion = or.top_provider?.max_completion_tokens ?? null;
+    m.orIsModerated = or.top_provider?.is_moderated ?? null;
+
+    // --- Pricing (convert $/token → $/1M tokens) ---
+    const inputPrice = toUsdPerMillion(or.pricing?.prompt);
+    const outputPrice = toUsdPerMillion(or.pricing?.completion);
+    m.orInputPrice = inputPrice;
+    m.orOutputPrice = outputPrice;
+    m.orCacheReadPrice = toUsdPerMillion(or.pricing?.input_cache_read);
+    m.orCacheWritePrice = toUsdPerMillion(or.pricing?.input_cache_write);
+    m.orWebSearchPrice = or.pricing?.web_search ? parseFloat(or.pricing.web_search) : null;
+
+    // Price fallback: fill AA/LiteLLM gaps with OR data
+    if (m.priceInputUsd === null && inputPrice !== null) {
+      m.priceInputUsd = inputPrice;
+      priceFallbacks++;
+    }
+    if (m.priceOutputUsd === null && outputPrice !== null) {
+      m.priceOutputUsd = outputPrice;
+    }
+    // Context fallback
+    if (m.contextWindow === 8192 && m.orContextLength && m.orContextLength > 8192) {
+      m.contextWindow = m.orContextLength;
+    }
+    // Max output fallback
+    if (m.maxOutput == null && m.orMaxCompletion) {
+      m.maxOutput = m.orMaxCompletion;
+    }
+
+    // --- Architecture / modalities ---
+    m.orInputModalities = or.architecture?.input_modalities ?? null;
+    m.orOutputModalities = or.architecture?.output_modalities ?? null;
+    m.orTokenizer = or.architecture?.tokenizer ?? null;
+    m.orInstructType = or.architecture?.instruct_type ?? null;
+
+    // Auto-enrich capabilities from modalities
+    if (m.orInputModalities) {
+      if (m.orInputModalities.includes("image") && !m.capabilities.vision) {
+        m.capabilities.vision = true;
+      }
+    }
+
+    // --- HuggingFace ID fallback ---
+    if (!m.hfRepoId && or.hugging_face_id) {
+      m.hfRepoId = or.hugging_face_id;
+      hfIdFallbacks++;
+    }
+    m.orHuggingFaceId = or.hugging_face_id ?? null;
+
+    // --- Metadata ---
+    m.orKnowledgeCutoff = or.knowledge_cutoff ?? null;
+    m.orExpirationDate = or.expiration_date ?? null;
+    // Fill knowledgeCutoff if AA didn't provide it
+    if (!m.knowledgeCutoff && or.knowledge_cutoff) {
+      m.knowledgeCutoff = or.knowledge_cutoff;
+    }
+    m.orSupportedParameters = or.supported_parameters ?? null;
+
+    // --- Reasoning ---
+    m.orReasoningMandatory = or.reasoning?.mandatory ?? null;
+    m.orReasoningDefaultEnabled = or.reasoning?.default_enabled ?? null;
+    m.orReasoningEfforts = or.reasoning?.supported_efforts ?? null;
+
+    // --- Benchmarks from OR ---
+    if (or.benchmarks?.artificial_analysis) {
+      const aa = or.benchmarks.artificial_analysis;
+      m.orBenchmarksAaIntelligence = aa.intelligence_index ?? null;
+      m.orBenchmarksAaCoding = aa.coding_index ?? null;
+      m.orBenchmarksAaAgentic = aa.agentic_index ?? null;
+    }
+  }
+
+  return { matched, priceFallbacks, hfIdFallbacks };
 }
 
 // --- 18. Models.dev provider catalog (gap #4 — 19th data source) -
@@ -1994,7 +2217,7 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     fetchLiteLLM(),
     fetchArenaAI(),
     fetchExchangeRates(),
-    fetchOpenRouterHealth(),
+    fetchOpenRouter(),
     fetchModelsDev(),
     fetchBenchLM(),
     fetchZeroEvalMetrics(),
@@ -2030,13 +2253,17 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
   console.log(`[BenchLM] ${enrichStats.benchlmMatched}/${models.length} modelos enriquecidos · ${enrichStats.pricingMatched} con pricing extras`);
   console.log(`[ZeroEval] ${enrichStats.zeroevalMatched}/${models.length} modelos con métricas de producción`);
 
+  // Apply OpenRouter enrichment (mutates models in place: pricing fallbacks, modalities, reasoning, benchmarks).
+  const orStats = applyOpenRouterEnrichment(models, { modelsMap: openrouter.modelsMap });
+  console.log(`[OpenRouter] ${orStats.matched}/${models.length} matched · ${orStats.priceFallbacks} price fallbacks · ${orStats.hfIdFallbacks} HF ID fallbacks`);
+
   const sources: SourceHealth[] = [
     aa.health,
     litellm.health,
     arena.health,
     exchange.health,
     hfHub.health,
-    openrouter,
+    openrouter.health,
     modelsDev.health,
     benchlm.health,
     zeroeval.health,

@@ -39,6 +39,7 @@ import {
   Zap,
   Timer,
   Check,
+  Cpu,
 } from "lucide-react";
 import type { AIModel } from "@/lib/types";
 
@@ -48,6 +49,7 @@ import { MetricCard } from "./ficha-tecnica/metric-card";
 import { ArtificialAnalysisSection } from "./ficha-tecnica/artificial-analysis-section";
 import { BenchlmProfileSection } from "./ficha-tecnica/benchlm-section";
 import { ZeroevalReliabilitySection } from "./ficha-tecnica/zeroeval-section";
+import { OpenRouterSection } from "./ficha-tecnica/openrouter-section";
 import { ModelLifecycleSection } from "./ficha-tecnica/model-lifecycle-section";
 
 interface HfModelDetails {
@@ -229,6 +231,18 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 description="Métricas en tiempo real de producción · 6ª fuente de datos (api.zeroeval.com)"
               >
                 <ZeroevalReliabilitySection model={model} />
+              </Section>
+            )}
+
+            {/* ====== OPENROUTER ====== */}
+            {model && model.orModelId != null && !loading && (
+              <Section
+                title="OpenRouter — Catálogo y Capacidades"
+                icon={Cpu}
+                color="var(--brand-primary)"
+                description="Pricing, modalities, reasoning, benchmarks · 7ª fuente de datos (openrouter.ai)"
+              >
+                <OpenRouterSection model={model} />
               </Section>
             )}
 

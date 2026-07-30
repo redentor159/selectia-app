@@ -203,6 +203,43 @@ export interface AIModel {
   zeroevalP95Latency?: number | null;                // milliseconds, p95 latency
   zeroevalAvgThroughput?: number | null;             // tokens/sec average
   zeroevalTotalCalls?: number | null;                // total calls monitored (confidence in the failure_rate)
+
+  // ============================================================
+  // OpenRouter enrichment
+  // Source: https://openrouter.ai/api/v1/models (public, 367 models)
+  // Matched by normalize(orId split('/')[1]) → normalize(model.name). ~50% coverage.
+  // Pricing: stored as $/1M tokens (multiply raw $/token × 1_000_000).
+  // All optional — never blocks TOPSIS (no criterion uses OR-exclusive fields).
+  // ============================================================
+  orModelId?: string | null;                 // "openai/gpt-4o" — canonical OR ID
+  orCanonicalSlug?: string | null;           // "openai/gpt-4o-2024-11-20" — versioned slug
+  orName?: string | null;                    // Display name from OR ("OpenAI: GPT-4o")
+  orDescription?: string | null;             // Rich text description from OR
+  orCreatedAt?: number | null;               // Unix timestamp of model release on OR
+  orContextLength?: number | null;           // Context window per OR
+  orMaxCompletion?: number | null;           // max_completion_tokens per OR top_provider
+  orIsModerated?: boolean | null;            // Content moderation applied
+  orInputPrice?: number | null;              // $/1M input tokens (prompt * 1_000_000)
+  orOutputPrice?: number | null;             // $/1M output tokens (completion * 1_000_000)
+  orCacheReadPrice?: number | null;          // $/1M cache read tokens
+  orCacheWritePrice?: number | null;         // $/1M cache write tokens
+  orWebSearchPrice?: number | null;          // $/web search (flat fee)
+  orHuggingFaceId?: string | null;           // HF repo ID when OR knows it (152/367 have it)
+  orKnowledgeCutoff?: string | null;         // "2024-04" — knowledge cutoff from OR
+  orExpirationDate?: string | null;          // ISO date when model is deprecated
+  orInputModalities?: string[] | null;       // ["text", "image", "video"]
+  orOutputModalities?: string[] | null;      // ["text"]
+  orTokenizer?: string | null;               // "GPT", "Qwen", etc.
+  orInstructType?: string | null;            // "gpt", "llama", etc. or null
+  orSupportedParameters?: string[] | null;   // ["temperature", "tools", ...]
+  orReasoningMandatory?: boolean | null;     // true = always thinks before answering
+  orReasoningDefaultEnabled?: boolean | null; // true = reasoning on by default
+  orReasoningEfforts?: string[] | null;      // ["high", "medium", "low"] if variable
+  orIsAlias?: boolean | null;               // true if this model is an alias to another
+  orAliasTargetSlug?: string | null;        // slug of the model this alias points to
+  orBenchmarksAaIntelligence?: number | null; // AA intelligence_index from OR benchmarks
+  orBenchmarksAaCoding?: number | null;       // AA coding_index from OR benchmarks
+  orBenchmarksAaAgentic?: number | null;      // AA agentic_index from OR benchmarks
 }
 
 export interface CurrencyRate {
