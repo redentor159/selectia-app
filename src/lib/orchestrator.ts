@@ -2245,9 +2245,7 @@ export async function getHealthStatus(): Promise<{
     retryAfter?: number | null;
   };
 }> {
-  const data = cache
-    ? cache.data
-    : await fetchDashboardData().catch(() => DASHBOARD_DATA);
+  const data = await fetchDashboardData().catch(() => DASHBOARD_DATA);
 
   const counts = { green: 0, yellow: 0, red: 0, total: 0 };
   for (const s of data.sources ?? []) {
@@ -2266,8 +2264,8 @@ export async function getHealthStatus(): Promise<{
     status: overall,
     models: data.models?.length ?? 0,
     sources: counts,
-    lastUpdated: cache ? new Date(cache.timestamp).toISOString() : data.generatedAt,
-    cacheAgeMs: cache ? Date.now() - cache.timestamp : 0,
+    lastUpdated: data.generatedAt,
+    cacheAgeMs: 0,
     aaQuota: data.aaQuota,
   };
 }

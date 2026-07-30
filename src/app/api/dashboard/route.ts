@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     forceRequests.push(Date.now());
     
     // Purge the global Next.js cache so the next fetch hits the live APIs
+    // @ts-expect-error Next.js typings mismatch
     revalidateTag("dashboard-data");
   } else {
     cleanOldRequests(normalRequests);
