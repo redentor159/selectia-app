@@ -276,21 +276,155 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
               </Section>
             )}
 
-            {/* ====== CICLO DE VIDA ====== */}
-            {model && (model.benchlmSupersededBy != null || model.benchlmIsCanonicalEntry === true) && !loading && (
-              <Section
-                title="Ciclo de Vida del Modelo"
-                icon={RefreshCw}
-                color="var(--color-warning)"
-                description="Estado de recomendación y vigencia de este modelo en su familia"
-              >
-                <ModelLifecycleSection model={model} />
-              </Section>
-            )}
+            {/* ====== CICLO DE VIDA Y HF METRICS GRID (2x2) ====== */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              
+              {/* ====== CICLO DE VIDA ====== */}
+              {model && (model.benchlmSupersededBy != null || model.benchlmIsCanonicalEntry === true) && !loading && (
+                <Section
+                  title="Ciclo de Vida del Modelo"
+                  icon={RefreshCw}
+                  color="var(--color-warning)"
+                  description="Estado de recomendación y vigencia de este modelo en su familia"
+                >
+                  <ModelLifecycleSection model={model} />
+                </Section>
+              )}
+
+              {details && !loading && (
+                <>
+                  {/* ====== ACTIVIDAD DEL ECOSISTEMA ====== */}
+                  <Section
+                    title="Actividad del Ecosistema"
+                    icon={Boxes}
+                    color="var(--color-success)"
+                    description="Adopción de desarrolladores construyendo en el ecosistema HuggingFace"
+                  >
+                    <div className="grid grid-cols-1 gap-x-8 gap-y-1">
+                      <CompactHFRow
+                        icon={Boxes}
+                        label="Spaces"
+                        value={details.spaces > 0 ? `${details.spaces} apps` : "—"}
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
+                      />
+                      <CompactHFRow
+                        icon={Server}
+                        label="HF Inference"
+                        value={
+                          details.inference === "warm" ? <span className="flex items-center gap-1 justify-end text-[var(--color-warning)]"><Zap className="h-3 w-3" fill="currentColor" /> Warm</span> :
+                          details.inference === "cold" ? <span className="flex items-center gap-1 justify-end text-[var(--text-secondary)]"><Timer className="h-3 w-3" /> Cold</span> :
+                          "—"
+                        }
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Disponibilidad de infraestructura gratuita en HF</div>Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor.</>}
+                      />
+                    </div>
+                    {details.spacesSample && details.spacesSample.length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--border-default)]">
+                        <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Ejemplos:</span>
+                        {details.spacesSample.map((s, i) => (
+                          <a
+                            key={i}
+                            href={`https://huggingface.co/spaces/${s}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[var(--brand-primary)] hover:underline inline-flex items-center gap-1 bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded border border-[var(--border-default)]"
+                          >
+                            <ExternalLink className="h-2.5 w-2.5" />
+                            {s}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </Section>
+
+                  {/* ====== ADOPCIÓN ====== */}
+                  <Section
+                    title="Adopción Comunitaria"
+                    icon={TrendingUp}
+                    color="var(--brand-primary)"
+                    description="Descargas (acumulado) vs trendingScore (velocidad reciente)"
+                  >
+                    <div className="grid grid-cols-1 gap-x-6 gap-y-1">
+                      <CompactHFRow
+                        icon={Download}
+                        label="Downloads"
+                        value={details.downloads != null ? details.downloads.toLocaleString("es-PE") : "—"}
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
+                      />
+                      <CompactHFRow
+                        icon={Heart}
+                        label="Likes"
+                        value={details.likes != null ? details.likes.toLocaleString("es-PE") : "—"}
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
+                      />
+                      <CompactHFRow
+                        icon={Flame}
+                        label="Trending Score"
+                        value={details.trendingScore != null ? details.trendingScore.toFixed(1) : "—"}
+                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Velocidad reciente</div>Un puntaje algorítmico de HuggingFace que mide el momentum actual del modelo. Un score alto indica que el modelo es tendencia hoy.</>}
+                      />
+                    </div>
+                  </Section>
+
+                  {/* ====== HARDWARE ====== */}
+                  {details.safetensors && (
+                    <Section
+                      title="Detalles de Hardware (safetensors)"
+                      icon={HardDrive}
+                      color="var(--color-warning)"
+                      description="Parámetros exactos por tipo de dato — para cálculo de VRAM"
+                    >
+                      <div className="grid grid-cols-1 gap-x-6 gap-y-1">
+                        <CompactHFRow
+                          icon={Hash}
+                          label="Parámetros totales"
+                          value={details.safetensors.total ? formatParams(details.safetensors.total) : "—"}
+                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
+                        />
+                        {details.safetensors.parameters && Object.entries(details.safetensors.parameters).map(([dtype, count]) => (
+                          <CompactHFRow
+                            key={dtype}
+                            icon={Hash}
+                            label={`Precisión ${dtype}`}
+                            value={formatParams(count)}
+                            tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{count.toLocaleString("es-PE")} parámetros</div>Cantidad de parámetros almacenados específicamente en la precisión '{dtype}'. Sirve para identificar modelos de precisión mixta o cuantizados nativamente.</>}
+                          />
+                        ))}
+                        {details.siblings && (
+                          <CompactHFRow
+                            icon={FileCode2}
+                            label="Archivos en repo"
+                            value={
+                              <span className="flex items-center justify-end gap-1.5">
+                                {details.siblings.count}
+                                {details.siblings.files.some(f => f.endsWith(".gguf")) ? <Check className="h-3 w-3 text-[var(--color-success)]" /> : null}
+                              </span>
+                            }
+                            tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Distribución de archivos</div>Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards.</>}
+                          />
+                        )}
+                      </div>
+                      {details.siblings && details.siblings.files.some(f => f.endsWith(".gguf")) && (
+                        <div className="mt-2 text-[11px] text-[var(--color-success)] flex items-start gap-1 pt-2 border-t border-[var(--border-default)]">
+                          <Check className="h-3 w-3 shrink-0 mt-0.5" />
+                          <span>Este repo distribuye versiones GGUF propias: {details.siblings.files.filter(f => f.endsWith(".gguf")).slice(0, 5).join(", ")}</span>
+                        </div>
+                      )}
+                      {details.tags && details.tags.includes("gguf") && !details.siblings?.files.some(f => f.endsWith(".gguf")) && (
+                        <div className="mt-2 text-[11px] text-[var(--color-warning)] flex items-start gap-1 pt-2 border-t border-[var(--border-default)]">
+                          <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                          <span>Tag "gguf" presente pero sin archivos .gguf — la versión cuantizada puede estar en un repo comunidad.</span>
+                        </div>
+                      )}
+                    </Section>
+                  )}
+                </>
+              )}
+            </div>
 
             {/* No HF repo associated case */}
             {noHfId && !loading && !error && (
-              <div className="rounded-md border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 flex items-center gap-2">
+              <div className="mt-4 rounded-md border border-[var(--color-warning-border)] bg-[var(--color-warning-bg)] p-3 flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
                 <div className="text-xs">
                   <div className="font-semibold text-[var(--color-warning)]">Sin repositorio de HuggingFace</div>
@@ -303,135 +437,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             )}
 
             {details && !loading && (
-              <>
-                {/* ====== ACTIVIDAD DEL ECOSISTEMA ====== */}
-                <Section
-                  title="Actividad del Ecosistema"
-                  icon={Boxes}
-                  color="var(--color-success)"
-                  description="Adopción de desarrolladores construyendo en el ecosistema HuggingFace"
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
-                    <CompactHFRow
-                      icon={Boxes}
-                      label="Spaces"
-                      value={details.spaces > 0 ? `${details.spaces} apps` : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
-                    />
-                    <CompactHFRow
-                      icon={Server}
-                      label="HF Inference"
-                      value={
-                        details.inference === "warm" ? <span className="flex items-center gap-1 text-[var(--color-warning)]"><Zap className="h-3 w-3" fill="currentColor" /> Warm</span> :
-                        details.inference === "cold" ? <span className="flex items-center gap-1 text-[var(--text-secondary)]"><Timer className="h-3 w-3" /> Cold</span> :
-                        "—"
-                      }
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Disponibilidad de infraestructura gratuita en HF</div>Indica si HuggingFace provee una API de inferencia sin servidor (Serverless Inference API) para este modelo. 'Warm' significa que está pre-cargado y responde al instante. 'Cold' significa que tomará un momento iniciar el contenedor.</>}
-                    />
-                  </div>
-                  {details.spacesSample && details.spacesSample.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">Ejemplos:</span>
-                      {details.spacesSample.map((s, i) => (
-                        <a
-                          key={i}
-                          href={`https://huggingface.co/spaces/${s}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-[var(--brand-primary)] hover:underline inline-flex items-center gap-1 bg-[var(--bg-overlay)] px-1.5 py-0.5 rounded border border-[var(--border-default)]"
-                        >
-                          <ExternalLink className="h-2.5 w-2.5" />
-                          {s}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </Section>
-
-                {/* ====== ADOPCIÓN ====== */}
-                <Section
-                  title="Adopción Comunitaria"
-                  icon={TrendingUp}
-                  color="var(--brand-primary)"
-                  description="Descargas (acumulado) vs trendingScore (velocidad reciente)"
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1">
-                    <CompactHFRow
-                      icon={Download}
-                      label="Downloads"
-                      value={details.downloads != null ? details.downloads.toLocaleString("es-PE") : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
-                    />
-                    <CompactHFRow
-                      icon={Heart}
-                      label="Likes"
-                      value={details.likes != null ? details.likes.toLocaleString("es-PE") : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
-                    />
-                    <CompactHFRow
-                      icon={Flame}
-                      label="Trending Score"
-                      value={details.trendingScore != null ? details.trendingScore.toFixed(1) : "—"}
-                      tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Velocidad reciente</div>Un puntaje algorítmico de HuggingFace que mide el momentum actual del modelo. Un score alto indica que el modelo es tendencia hoy.</>}
-                    />
-                  </div>
-                </Section>
-
-                {/* ====== HARDWARE ====== */}
-                {details.safetensors && (
-                  <Section
-                    title="Detalles de Hardware (safetensors)"
-                    icon={HardDrive}
-                    color="var(--color-warning)"
-                    description="Parámetros exactos por tipo de dato — para cálculo de VRAM"
-                  >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
-                      <CompactHFRow
-                        icon={Hash}
-                        label="Parámetros totales"
-                        value={details.safetensors.total ? formatParams(details.safetensors.total) : "—"}
-                        tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
-                      />
-                      {details.safetensors.parameters && Object.entries(details.safetensors.parameters).map(([dtype, count]) => (
-                        <CompactHFRow
-                          key={dtype}
-                          icon={Hash}
-                          label={`Precisión ${dtype}`}
-                          value={formatParams(count)}
-                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">{count.toLocaleString("es-PE")} parámetros</div>Cantidad de parámetros almacenados específicamente en la precisión '{dtype}'. Sirve para identificar modelos de precisión mixta o cuantizados nativamente.</>}
-                        />
-                      ))}
-                      {details.siblings && (
-                        <CompactHFRow
-                          icon={FileCode2}
-                          label="Archivos en repo"
-                          value={
-                            <span className="flex items-center justify-end gap-1.5">
-                              {details.siblings.count}
-                              {details.siblings.files.some(f => f.endsWith(".gguf")) ? <Check className="h-3 w-3 text-[var(--color-success)]" /> : null}
-                            </span>
-                          }
-                          tooltip={<><div className="font-semibold mb-1 text-[var(--text-primary)]">Distribución de archivos</div>Cantidad de archivos y carpetas en este repositorio de HuggingFace. Muchos archivos pueden indicar adaptadores LoRA, versiones cuantizadas o un modelo particionado en múltiples shards.</>}
-                        />
-                      )}
-                    </div>
-                    {details.siblings && details.siblings.files.some(f => f.endsWith(".gguf")) && (
-                      <div className="mt-2 text-[11px] text-[var(--color-success)] flex items-start gap-1">
-                        <Check className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span>Este repo distribuye versiones GGUF propias: {details.siblings.files.filter(f => f.endsWith(".gguf")).slice(0, 5).join(", ")}</span>
-                      </div>
-                    )}
-                    {details.tags && details.tags.includes("gguf") && !details.siblings?.files.some(f => f.endsWith(".gguf")) && (
-                      <div className="mt-2 text-[11px] text-[var(--color-warning)] flex items-start gap-1">
-                        <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
-                        <span>Tag "gguf" presente pero sin archivos .gguf — la versión cuantizada puede estar en un repo comunidad.</span>
-                      </div>
-                    )}
-                  </Section>
-                )}
-
-
-
+              <div className="flex flex-col gap-4 mt-4">
                 {/* ====== DETALLES TÉCNICOS ====== */}
                 <Section
                   title="Detalles Técnicos de Implementación"
@@ -575,7 +581,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     </div>
                   </Section>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}
