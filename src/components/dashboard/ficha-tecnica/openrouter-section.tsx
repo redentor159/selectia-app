@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2, Tag, Info } from "lucide-react";
 import type { AIModel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -78,6 +78,7 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
         </a>
       </div>
 
+
       {/* 2. High-Density Data Grid (3 columns on desktop) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
         
@@ -126,6 +127,20 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
           
           {model.orTokenizer && (
             <CompactMetricRow label="Tokenizer" value={<span className="font-mono">{model.orTokenizer}</span>} />
+          )}
+          {model.orCanonicalSlug && (
+            <CompactMetricRow 
+              label="Snapshot (pinning)" 
+              value={<span className="font-mono text-[10px]">{model.orCanonicalSlug}</span>}
+              tooltip={<><div className="font-semibold mb-1">Slug versionado</div>La versión exacta del modelo que OR sirve actualmente. Usar este slug en producción en vez del alias (ej. openai/gpt-4o) garantiza que tu app no se rompa cuando el proveedor actualiza el modelo en el backend.</>}
+            />
+          )}
+          {model.orInstructType && (
+            <CompactMetricRow 
+              label="Instruct Format" 
+              value={<span className="font-mono">{model.orInstructType}</span>}
+              tooltip={<><div className="font-semibold mb-1">Formato de instrucciones nativo</div>El formato de chat template que el modelo espera nativamente (ej. chatml, llama3, gpt). Relevante si construyes prompts raw sin usar la abstracción de "messages" de OR.</>}
+            />
           )}
         </div>
 

@@ -55,6 +55,7 @@ import { ZeroevalReliabilitySection } from "./ficha-tecnica/zeroeval-section";
 import { OpenRouterSection } from "./ficha-tecnica/openrouter-section";
 import { ModelLifecycleSection } from "./ficha-tecnica/model-lifecycle-section";
 
+
 interface HfModelDetails {
   id: string;
   spaces: number;
@@ -201,6 +202,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
               </div>
             )}
 
+
             {/* ====== ARTIFICIAL ANALYSIS ====== */}
             {model && !loading && (
               <Section
@@ -258,7 +260,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   title="Ciclo de Vida del Modelo"
                   icon={RefreshCw}
                   color="var(--color-warning)"
-                  description="Estado de recomendación y vigencia de este modelo en su familia"
+                  description="Vigencia y sucesión dentro de la familia del modelo · fuente: benchlm.ai"
                 >
                   <ModelLifecycleSection model={model} />
                 </Section>
