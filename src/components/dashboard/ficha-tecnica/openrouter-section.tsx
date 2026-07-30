@@ -26,55 +26,32 @@ const PARAM_LABELS: Record<string, string> = {
 };
 
 const MODALITY_ICONS: Record<string, React.ReactNode> = {
-  text: <FileText className="h-4 w-4" />,
-  image: <Eye className="h-4 w-4" />,
-  audio: <Mic className="h-4 w-4" />,
-  video: <Zap className="h-4 w-4" />,
-  file: <Layers className="h-4 w-4" />,
+  text: <FileText className="h-3.5 w-3.5" />,
+  image: <Eye className="h-3.5 w-3.5" />,
+  audio: <Mic className="h-3.5 w-3.5" />,
+  video: <Zap className="h-3.5 w-3.5" />,
+  file: <Layers className="h-3.5 w-3.5" />,
 };
 
-function PriceRow({ label, value, note }: { label: string; value: number | null | undefined; note?: string }) {
-  if (value == null) return null;
-  return (
-    <div className="flex items-center justify-between py-1.5 border-b border-[var(--border-default)] last:border-0">
-      <span className="text-xs text-[var(--text-secondary)]">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <span className="text-sm font-mono font-medium text-[var(--text-primary)]">
-          ${value < 0.01 ? value.toFixed(4) : value.toFixed(2)}
-          <span className="text-xs text-[var(--text-disabled)] font-sans font-normal ml-0.5">/1M</span>
-        </span>
-        {note && <span className="text-xs text-[var(--text-disabled)]">{note}</span>}
-      </div>
-    </div>
-  );
-}
-
-function SpecBox({ label, value, icon: Icon, tooltip }: { label: string; value: React.ReactNode; icon: React.ElementType; tooltip?: string }) {
+function CompactRow({ label, value, tooltip }: { label: string; value: React.ReactNode; tooltip?: string }) {
   const content = (
-    <div className="flex flex-col p-3 rounded-lg bg-[var(--bg-surface)] transition-colors hover:bg-[var(--bg-overlay)] group">
-      <div className="flex items-center gap-1.5 mb-1 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-        <Icon className="h-3.5 w-3.5" />
-        <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
-      </div>
-      <div className="text-sm font-medium text-[var(--text-primary)]">{value}</div>
+    <div className="flex items-baseline justify-between py-1 border-b border-[var(--border-default)] last:border-0 group">
+      <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">{label}</span>
+      <span className="text-sm font-medium text-[var(--text-primary)] text-right">{value}</span>
     </div>
   );
 
-  if (tooltip) {
-    return (
-      <TooltipProvider delayDuration={200}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="cursor-help">{content}</div>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs max-w-[250px]">
-            {tooltip}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-  return content;
+  if (!tooltip) return content;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="cursor-help">{content}</div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[250px]">{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function OpenRouterSection({ model }: { model: AIModel }) {
@@ -84,162 +61,146 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
   const isAlias = model.orIsAlias === true;
   const hasReasoning = model.orReasoningMandatory === true || model.orReasoningDefaultEnabled === true || (model.orReasoningEfforts && model.orReasoningEfforts.length > 0);
   const hasPricing = model.orInputPrice != null || model.orOutputPrice != null;
-  const hasModalities = (model.orInputModalities?.length ?? 0) > 0;
-  const hasParams = (model.orSupportedParameters?.length ?? 0) > 0;
   const hasBenchmarks = model.orBenchmarksAaIntelligence != null || model.orBenchmarksAaCoding != null || model.orBenchmarksAaAgentic != null;
+  const hasParams = (model.orSupportedParameters?.length ?? 0) > 0;
 
   return (
-    <div className="space-y-8">
-      {/* Header — OR identity + link */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-mono font-semibold text-[var(--text-primary)] tracking-wide">{orId}</h4>
-            {isAlias && model.orAliasTargetSlug && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-overlay)] text-[var(--text-secondary)] border border-[var(--border-default)]">
-                Alias de {model.orAliasTargetSlug}
-              </span>
-            )}
-          </div>
-          {model.orCanonicalSlug && model.orCanonicalSlug !== orId && (
-            <div className="text-xs text-[var(--text-disabled)]">
-              Slug canónico: <span className="font-mono">{model.orCanonicalSlug}</span>
-            </div>
+    <div className="flex flex-col gap-5">
+      {/* 1. Ultra-compact Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-[var(--border-default)]">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-mono font-semibold text-[var(--text-primary)] tracking-tight">{orId}</h4>
+          {isAlias && model.orAliasTargetSlug && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-[var(--bg-overlay)] text-[var(--text-secondary)] border border-[var(--border-default)]">
+              Alias: {model.orAliasTargetSlug}
+            </span>
+          )}
+          {model.orExpirationDate && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-[var(--color-warning-bg)] text-[var(--color-warning)] border border-[var(--color-warning-border)] flex items-center gap-1">
+              <Shield className="h-3 w-3" /> Expira {new Date(model.orExpirationDate).toLocaleDateString("es-PE", { month: "short", day: "numeric" })}
+            </span>
           )}
         </div>
         <a
           href={`https://openrouter.ai/${orId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-[var(--bg-overlay)] hover:bg-[var(--bg-surface)] text-[var(--text-primary)] transition-colors border border-[var(--border-default)]"
+          className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] inline-flex items-center gap-1 transition-colors"
         >
-          Ver catálogo <ExternalLink className="h-3.5 w-3.5" />
+          Ver en OpenRouter <ExternalLink className="h-3 w-3" />
         </a>
       </div>
 
-
-      {/* Specs Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {model.orContextLength && (
-          <SpecBox
-            label="Context Window"
-            icon={Brain}
-            value={<span className="font-mono text-base">{(model.orContextLength / 1000).toFixed(0)}K</span>}
-            tooltip="Ventana de contexto máxima certificada por OpenRouter."
-          />
-        )}
-        {model.orMaxCompletion && (
-          <SpecBox
-            label="Max Output"
-            icon={Code}
-            value={<span className="font-mono text-base">{(model.orMaxCompletion / 1000).toFixed(0)}K</span>}
-            tooltip="Límite máximo de tokens generados por respuesta."
-          />
-        )}
-        {model.orKnowledgeCutoff && (
-          <SpecBox
-            label="Knowledge"
-            icon={Clock}
-            value={model.orKnowledgeCutoff}
-            tooltip="Fecha de corte del entrenamiento base."
-          />
-        )}
-        {model.orIsModerated != null && (
-          <SpecBox
-            label="Filtros (Safety)"
-            icon={Shield}
-            value={
-              <span className={cn(model.orIsModerated ? "text-[var(--text-secondary)]" : "text-[var(--text-primary)]")}>
-                {model.orIsModerated ? "Moderado" : "Sin filtros"}
-              </span>
-            }
-            tooltip="Indica si el proveedor aplica capas de moderación de contenido (NSFW/Violence)."
-          />
-        )}
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Pricing Block */}
-        {hasPricing && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-[var(--text-secondary)]" />
-              <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Esquema de Precios</h5>
-            </div>
-            <div className="space-y-1 pl-1">
-              <PriceRow label="Input (Prompt)" value={model.orInputPrice} />
-              <PriceRow label="Output (Completion)" value={model.orOutputPrice} />
-              <PriceRow label="Cache Read" value={model.orCacheReadPrice} />
-              <PriceRow label="Cache Write" value={model.orCacheWritePrice} />
-              {model.orWebSearchPrice != null && (
-                <div className="flex items-center justify-between py-1.5 pt-2 mt-1 border-t border-[var(--border-default)]">
-                  <span className="text-xs font-medium text-[var(--text-secondary)]">Web search (Fee plano)</span>
-                  <span className="text-sm font-mono font-medium text-[var(--text-primary)]">
-                    ${model.orWebSearchPrice.toFixed(3)}
-                    <span className="text-xs font-sans text-[var(--text-disabled)] ml-0.5">/req</span>
-                  </span>
-                </div>
-              )}
+      {/* 2. High-Density Data Grid (3 columns on desktop) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
+        
+        {/* Col 1: Core Specs & Modalities */}
+        <div className="space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-disabled)] mb-2">Especificaciones</div>
+          
+          {model.orContextLength && (
+            <CompactRow 
+              label="Context Window" 
+              value={<span className="font-mono">{(model.orContextLength / 1000).toFixed(0)}K</span>} 
+            />
+          )}
+          {model.orMaxCompletion && (
+            <CompactRow 
+              label="Max Output" 
+              value={<span className="font-mono">{(model.orMaxCompletion / 1000).toFixed(0)}K</span>} 
+            />
+          )}
+          {model.orKnowledgeCutoff && (
+            <CompactRow label="Knowledge Cutoff" value={model.orKnowledgeCutoff} />
+          )}
+          {model.orIsModerated != null && (
+            <CompactRow 
+              label="Filtros de Seguridad" 
+              value={model.orIsModerated ? "Moderado" : "Sin filtros"} 
+            />
+          )}
+          
+          <div className="flex items-center justify-between py-1 border-b border-[var(--border-default)]">
+            <span className="text-xs text-[var(--text-secondary)]">Input / Output</span>
+            <div className="flex items-center gap-2 text-[var(--text-primary)]">
+              <div className="flex items-center">
+                {(model.orInputModalities ?? ["text"]).map(m => (
+                  <span key={`in-${m}`} className="opacity-80" title={`Input: ${m}`}>{MODALITY_ICONS[m] || <FileText className="h-3.5 w-3.5" />}</span>
+                ))}
+              </div>
+              <span className="text-[var(--text-disabled)] text-xs">→</span>
+              <div className="flex items-center">
+                {(model.orOutputModalities ?? ["text"]).map(m => (
+                  <span key={`out-${m}`} className="opacity-80" title={`Output: ${m}`}>{MODALITY_ICONS[m] || <FileText className="h-3.5 w-3.5" />}</span>
+                ))}
+              </div>
             </div>
           </div>
-        )}
+          
+          {model.orTokenizer && (
+            <CompactRow label="Tokenizer" value={<span className="font-mono">{model.orTokenizer}</span>} />
+          )}
+        </div>
 
-        <div className="space-y-8">
-          {/* Benchmarks Block */}
+        {/* Col 2: Economics */}
+        <div className="space-y-1">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-disabled)] mb-2">Economía (USD / 1M)</div>
+          
+          {hasPricing ? (
+            <>
+              <CompactRow label="Input (Prompt)" value={<span className="font-mono">${model.orInputPrice?.toFixed(2) ?? "—"}</span>} />
+              <CompactRow label="Output (Completion)" value={<span className="font-mono">${model.orOutputPrice?.toFixed(2) ?? "—"}</span>} />
+              {model.orCacheReadPrice != null && (
+                <CompactRow label="Cache Read" value={<span className="font-mono">${model.orCacheReadPrice.toFixed(2)}</span>} />
+              )}
+              {model.orCacheWritePrice != null && (
+                <CompactRow label="Cache Write" value={<span className="font-mono">${model.orCacheWritePrice.toFixed(2)}</span>} />
+              )}
+              {model.orWebSearchPrice != null && (
+                <CompactRow label="Web Search Fee" value={<span className="font-mono">${model.orWebSearchPrice.toFixed(3)}<span className="text-[10px] text-[var(--text-disabled)] font-sans ml-1">/req</span></span>} />
+              )}
+            </>
+          ) : (
+            <div className="text-xs text-[var(--text-disabled)] py-1 italic">Precios no reportados</div>
+          )}
+        </div>
+
+        {/* Col 3: Capabilities & Benchmarks */}
+        <div className="space-y-4">
           {hasBenchmarks && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-[var(--text-secondary)]" />
-                <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Benchmarks Destacados</h5>
-              </div>
-              <div className="grid grid-cols-3 divide-x divide-[var(--border-default)] bg-[var(--bg-surface)] rounded-lg p-2">
-                {model.orBenchmarksAaIntelligence != null && (
-                  <div className="p-2 text-center flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-[var(--text-primary)] font-mono">{model.orBenchmarksAaIntelligence.toFixed(1)}</span>
-                    <span className="text-xs text-[var(--text-secondary)] mt-1 uppercase tracking-wider">Intelligence</span>
-                  </div>
-                )}
-                {model.orBenchmarksAaCoding != null && (
-                  <div className="p-2 text-center flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-[var(--text-primary)] font-mono">{model.orBenchmarksAaCoding.toFixed(1)}</span>
-                    <span className="text-xs text-[var(--text-secondary)] mt-1 uppercase tracking-wider">Coding</span>
-                  </div>
-                )}
-                {model.orBenchmarksAaAgentic != null && (
-                  <div className="p-2 text-center flex flex-col items-center justify-center">
-                    <span className="text-xl font-bold text-[var(--text-primary)] font-mono">{model.orBenchmarksAaAgentic.toFixed(1)}</span>
-                    <span className="text-xs text-[var(--text-secondary)] mt-1 uppercase tracking-wider">Agentic</span>
-                  </div>
-                )}
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-disabled)] mb-2">Benchmarks (AA)</div>
+              <div className="grid grid-cols-3 gap-1">
+                <div className="flex flex-col items-center justify-center p-1.5 bg-[var(--bg-overlay)] rounded-sm">
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{model.orBenchmarksAaIntelligence?.toFixed(1) ?? "—"}</span>
+                  <span className="text-[9px] uppercase text-[var(--text-secondary)]">Intel</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-1.5 bg-[var(--bg-overlay)] rounded-sm">
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{model.orBenchmarksAaCoding?.toFixed(1) ?? "—"}</span>
+                  <span className="text-[9px] uppercase text-[var(--text-secondary)]">Code</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-1.5 bg-[var(--bg-overlay)] rounded-sm">
+                  <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">{model.orBenchmarksAaAgentic?.toFixed(1) ?? "—"}</span>
+                  <span className="text-[9px] uppercase text-[var(--text-secondary)]">Agent</span>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Reasoning Capabilities */}
           {hasReasoning && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[var(--text-secondary)]" />
-                <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Capacidades de Razonamiento</h5>
-              </div>
-              <div className="flex flex-wrap gap-2 pl-1">
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-disabled)] mb-1.5">Razonamiento</div>
+              <div className="flex flex-wrap gap-1.5">
                 {model.orReasoningMandatory === true && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-default)]">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                    Razonamiento Obligatorio
-                  </span>
+                  <span className="px-1.5 py-0.5 rounded-sm bg-[var(--bg-overlay)] text-[10px] font-medium text-[var(--text-primary)]">Obligatorio</span>
                 )}
                 {model.orReasoningDefaultEnabled === true && model.orReasoningMandatory !== true && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-default)]">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
-                    Activado por Defecto
-                  </span>
+                  <span className="px-1.5 py-0.5 rounded-sm bg-[var(--bg-overlay)] text-[10px] font-medium text-[var(--text-primary)]">Por Defecto</span>
                 )}
                 {(model.orReasoningEfforts ?? []).length > 0 && (
-                  <div className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] ml-1 py-1">
-                    <span className="font-medium uppercase tracking-wider">Niveles soportados:</span>
-                    <span className="font-mono">{(model.orReasoningEfforts ?? []).join(", ")}</span>
-                  </div>
+                  <span className="px-1.5 py-0.5 rounded-sm bg-[var(--bg-overlay)] text-[10px] font-medium text-[var(--text-secondary)] font-mono">
+                    {(model.orReasoningEfforts ?? []).join("/")}
+                  </span>
                 )}
               </div>
             </div>
@@ -247,114 +208,30 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
         </div>
       </div>
 
-      {/* Modalities & Architecture */}
-      {hasModalities && (
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-[var(--text-secondary)]" />
-            <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Arquitectura y Modalidades</h5>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pl-1">
-            <div className="space-y-1.5">
-              <span className="text-xs text-[var(--text-disabled)] uppercase tracking-wider block">Input Modalities</span>
-              <div className="flex items-center gap-2">
-                {(model.orInputModalities ?? []).map(m => (
-                  <TooltipProvider key={`in-${m}`} delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="p-1.5 rounded bg-[var(--bg-surface)] text-[var(--text-primary)]">
-                          {MODALITY_ICONS[m] || <FileText className="h-4 w-4" />}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs capitalize">{m}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </div>
+      {/* 3. Footer utilities (Params + HF ID) condensed */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[var(--border-default)]">
+        {hasParams ? (
+          <details className="group relative">
+            <summary className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer list-none select-none transition-colors">
+              ▶ Parámetros de API Soportados
+            </summary>
+            <div className="absolute left-0 top-full mt-2 w-[calc(100vw-32px)] max-w-md z-10 p-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] shadow-lg rounded-md">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
+              </p>
             </div>
+          </details>
+        ) : <div />}
 
-            <div className="space-y-1.5">
-              <span className="text-xs text-[var(--text-disabled)] uppercase tracking-wider block">Output Modalities</span>
-              <div className="flex items-center gap-2">
-                {(model.orOutputModalities ?? []).map(m => (
-                  <TooltipProvider key={`out-${m}`} delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="p-1.5 rounded bg-[var(--bg-surface)] text-[var(--text-primary)]">
-                          {MODALITY_ICONS[m] || <FileText className="h-4 w-4" />}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs capitalize">{m}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </div>
-            </div>
-
-            {model.orTokenizer && (
-              <div className="space-y-0.5 ml-auto text-right">
-                <span className="text-xs text-[var(--text-disabled)] uppercase tracking-wider block">Tokenizer</span>
-                <span className="text-sm font-mono font-medium text-[var(--text-primary)]">{model.orTokenizer}</span>
-              </div>
-            )}
-            {model.orInstructType && (
-              <div className="space-y-0.5 ml-4 text-right border-l border-[var(--border-default)] pl-4">
-                <span className="text-xs text-[var(--text-disabled)] uppercase tracking-wider block">Instruct Type</span>
-                <span className="text-sm font-mono font-medium text-[var(--text-primary)]">{model.orInstructType}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Supported Parameters */}
-      {hasParams && (
-        <details className="group pt-2">
-          <summary className="flex items-center gap-2 cursor-pointer list-none text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors select-none">
-            <Settings2 className="h-4 w-4" />
-            <h5 className="text-xs font-semibold uppercase tracking-wider">Ver Parámetros Soportados de API</h5>
-          </summary>
-          <div className="mt-3 pl-6 border-l-2 border-[var(--border-default)]">
-            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-              {(model.orSupportedParameters ?? []).map(p => PARAM_LABELS[p] ?? p).join(" • ")}
-            </p>
-            <p className="text-xs text-[var(--text-disabled)] mt-2">
-              Estos son los parámetros técnicos que la API de OpenRouter acepta al llamar a este modelo (útil para integración en código).
-            </p>
-          </div>
-        </details>
-      )}
-
-      {/* Meta Footer */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6 border-t border-[var(--border-default)]">
-        {model.orHuggingFaceId ? (
-          <div className="text-xs text-[var(--text-secondary)]">
-            HuggingFace Repositorio:{" "}
-            <a href={`https://huggingface.co/${model.orHuggingFaceId}`} target="_blank" rel="noopener noreferrer"
-              className="font-mono text-[var(--text-primary)] hover:text-[var(--text-secondary)] transition-colors underline underline-offset-2">
+        {model.orHuggingFaceId && (
+          <div className="text-[10px] text-[var(--text-secondary)] flex items-center gap-1.5">
+            HF Base: 
+            <a href={`https://huggingface.co/${model.orHuggingFaceId}`} target="_blank" rel="noopener noreferrer" className="font-mono hover:text-[var(--text-primary)] underline underline-offset-2">
               {model.orHuggingFaceId}
             </a>
           </div>
-        ) : (
-          <div /> // spacer
         )}
-        <div className="text-xs text-[var(--text-disabled)] text-right">
-          Sincronizado vía OpenRouter API
-        </div>
       </div>
-
-      {/* Expiration warning */}
-      {model.orExpirationDate && (
-        <div className="rounded-lg bg-[var(--bg-surface)] p-3 border border-[var(--border-default)] flex items-start gap-3 mt-4">
-          <Shield className="h-5 w-5 text-[var(--text-primary)] shrink-0" />
-          <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">⚠ Deprecación Programada</div>
-            <div className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Este modelo expira y será retirado de OpenRouter el {new Date(model.orExpirationDate).toLocaleDateString("es-PE", { year: "numeric", month: "long", day: "numeric" })}.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
