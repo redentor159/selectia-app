@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2, Info } from "lucide-react";
+import { ExternalLink, Cpu, Brain, Code, Bot, Eye, Mic, FileText, Zap, Clock, Shield, Layers, Settings2, Sparkles, CheckCircle2 } from "lucide-react";
 import type { AIModel } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
