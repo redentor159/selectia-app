@@ -45,35 +45,8 @@ import {
 import type { AIModel } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-function CompactHFRow({ label, value, tooltip, icon: Icon, valueClassName }: { label: string; value: React.ReactNode; tooltip?: React.ReactNode; icon?: any; valueClassName?: string }) {
-  const content = (
-    <div className="flex items-baseline justify-between py-1.5 border-b border-[var(--border-default)] last:border-0 group gap-4">
-      <div className="flex items-center gap-1.5 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors shrink-0">
-        {Icon && <Icon className="h-3 w-3 shrink-0" />}
-        <span className="text-[11px] font-medium uppercase tracking-wider whitespace-nowrap">{label}</span>
-      </div>
-      <div className="text-right flex-1 flex justify-end min-w-0">
-        <span className={valueClassName || "text-sm font-semibold text-[var(--text-primary)] break-all sm:break-normal text-right"}>{value}</span>
-      </div>
-    </div>
-  );
-
-  if (!tooltip) return content;
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="cursor-help">{content}</div>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs max-w-[250px]">
-          {tooltip}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
-
 // Extracted modules
+import { CompactMetricRow } from "./ficha-tecnica/compact-metric-row";
 import { formatBytes, formatParams, formatRelative, resolveHfId } from "./ficha-tecnica/utils";
 import { MetricCard } from "./ficha-tecnica/metric-card";
 import { ArtificialAnalysisSection } from "./ficha-tecnica/artificial-analysis-section";
@@ -301,13 +274,13 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     description="Adopción de desarrolladores construyendo en el ecosistema HuggingFace"
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={Boxes}
                         label="Spaces"
                         value={details.spaces > 0 ? `${details.spaces} apps` : "—"}
                         tooltip={<><div className="font-semibold mb-1">Aplicaciones demo interactivas que usan este modelo</div>Cantidad de HuggingFace Spaces (aplicaciones web, demos o herramientas) construidas por la comunidad que utilizan directamente este repositorio.</>}
                       />
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={Server}
                         label="HF Inference"
                         value={
@@ -345,19 +318,19 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                     description="Descargas (acumulado) vs trendingScore (velocidad reciente)"
                   >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={Download}
                         label="Downloads"
                         value={details.downloads != null ? details.downloads.toLocaleString("es-PE") : "—"}
                         tooltip={<><div className="font-semibold mb-1">Adopción acumulada</div>Número total de veces que este repositorio ha sido descargado en los últimos 30 días. Es un indicador clave de adopción técnica real.</>}
                       />
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={Heart}
                         label="Likes"
                         value={details.likes != null ? details.likes.toLocaleString("es-PE") : "—"}
                         tooltip={<><div className="font-semibold mb-1">Aprobación cualitativa</div>Cantidad de usuarios en HuggingFace que han marcado este repositorio como favorito. Representa la calidad percibida por la comunidad.</>}
                       />
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={Flame}
                         label="Trending Score"
                         value={details.trendingScore != null ? details.trendingScore.toFixed(1) : "—"}
@@ -375,14 +348,14 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       description="Parámetros exactos por tipo de dato — para cálculo de VRAM"
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                        <CompactHFRow
+                        <CompactMetricRow
                           icon={Hash}
                           label="Parámetros totales"
                           value={details.safetensors.total ? formatParams(details.safetensors.total) : "—"}
                           tooltip={<><div className="font-semibold mb-1">Conteo exacto (no aproximado)</div>Total acumulado de todos los parámetros dentro de los tensores del modelo (safetensors). Es el tamaño matemático exacto de la red neuronal, fundamental para estimar VRAM.</>}
                         />
                         {details.safetensors.parameters && Object.entries(details.safetensors.parameters).map(([dtype, count]) => (
-                          <CompactHFRow
+                          <CompactMetricRow
                             key={dtype}
                             icon={Hash}
                             label={`Precisión ${dtype}`}
@@ -391,7 +364,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                           />
                         ))}
                         {details.siblings && (
-                          <CompactHFRow
+                          <CompactMetricRow
                             icon={FileCode2}
                             label="Archivos en repo"
                             value={
@@ -446,28 +419,28 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   description="Para integración directa mediante código"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1">
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={Library}
                       label="Library"
                       value={details.libraryName ?? "—"}
                       tooltip={<><div className="font-semibold mb-1">Framework recomendado</div>La biblioteca de Python predeterminada recomendada para cargar y ejecutar este modelo.</>}
                     />
                     {details.transformersInfo?.processor && (
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={MessageSquare}
                         label="Processor"
                         value={details.transformersInfo.processor}
                         tooltip={<><div className="font-semibold mb-1">Clase del tokenizador</div>El pre-procesador o tokenizador requerido para convertir texto bruto en los tensores de entrada.</>}
                       />
                     )}
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={Hash}
                       label="Commit SHA"
                       valueClassName="text-[11px] font-mono text-[var(--text-primary)] text-right"
                       value={details.sha ? details.sha.slice(0, 12) + "…" : "—"}
                       tooltip={<><div className="font-semibold mb-1">Para fijar versión</div>Commit SHA exacto de la versión principal. Fundamental usarlo como 'revision' al descargar el modelo en producción.</>}
                     />
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={HardDrive}
                       label="Used Storage"
                       value={details.usedStorage != null ? formatBytes(details.usedStorage) : "—"}
@@ -476,7 +449,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pt-1 mt-1 border-t border-[var(--border-default)]">
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={FileCode2}
                       label="Architecture"
                       valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
@@ -484,7 +457,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       tooltip={<><div className="font-semibold mb-1">Clase base</div>La arquitectura algorítmica específica definida en config.json. Dicta cómo se estructuran las capas del modelo.</>}
                     />
                     {details.transformersInfo && (
-                      <CompactHFRow
+                      <CompactMetricRow
                         icon={FileCode2}
                         label="Auto Model"
                         valueClassName="text-[13px] font-semibold text-[var(--text-primary)] text-right break-words max-w-[280px]"
@@ -526,13 +499,13 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   description="Estado del repositorio en HuggingFace Hub"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1">
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={AlertCircle}
                       label="Disabled"
                       value={details.disabled === true ? <span className="flex items-center gap-1 text-[var(--color-error)] justify-end"><Ban className="h-3 w-3" /> Sí</span> : <span className="flex items-center gap-1 text-[var(--color-success)] justify-end"><Check className="h-3 w-3" /> No</span>}
                       tooltip={<><div className="font-semibold mb-1">¿Repo deshabilitado?</div>Si es 'Sí', el autor ha marcado este repositorio como inactivo o roto, o HuggingFace lo ha deshabilitado por razones de seguridad. Nunca usar modelos disabled.</>}
                     />
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={Server}
                       label="Gated"
                       value={
@@ -542,14 +515,14 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                       }
                       tooltip={<><div className="font-semibold mb-1">Acceso: libre/auto/manual</div>Un modelo 'Gated' requiere que inicies sesión en HuggingFace y aceptes términos de licencia antes de descargarlo. 'Manual' requiere aprobación humana.</>}
                     />
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={CheckCircle2}
                       label="Last Modified"
                       valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"
                       value={details.lastModified ? formatRelative(details.lastModified) : "—"}
                       tooltip={<><div className="font-semibold mb-1">{details.lastModified ? new Date(details.lastModified).toLocaleString("es-PE") : ""}</div>Fecha exacta del último commit o cambio en los archivos del repositorio. Modelos sin actualizaciones por más de 6 meses pueden estar obsoletos.</>}
                     />
-                    <CompactHFRow
+                    <CompactMetricRow
                       icon={CheckCircle2}
                       label="Created"
                       valueClassName="text-[12px] font-medium text-[var(--text-primary)] text-right"

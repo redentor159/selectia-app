@@ -1,6 +1,7 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trophy, Hash, Activity, Library } from "lucide-react";
 import type { AIModel } from "@/lib/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CompactMetricRow } from "./compact-metric-row";
 
 const BENCHLM_CATEGORY_ROWS: Array<{ key: keyof NonNullable<AIModel["benchlmCategoryScores"]>; label: string }> = [
   { key: "agentic", label: "Agentic" },
@@ -52,59 +53,31 @@ export function BenchlmProfileSection({ model }: { model: AIModel }) {
   return (
     <div className="space-y-6">
       {/* Top row: score / rank / confidence / benchmark count */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="relative overflow-hidden rounded-lg p-3 flex flex-col justify-center transition-all duration-300 hover:bg-[var(--bg-overlay)] cursor-help group">
-                <div className="eyebrow mb-1">Display Score</div>
-                <div className="text-xl font-semibold num text-[var(--text-primary)]">
-                  {displayScore != null ? `${displayScore}/100` : "—"}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[200px]">Puntaje global consolidado por benchlm.ai, ponderado en base a 8 dimensiones de rendimiento.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="relative overflow-hidden rounded-lg p-3 flex flex-col justify-center transition-all duration-300 hover:bg-[var(--bg-overlay)] cursor-help group">
-                <div className="eyebrow mb-1">Overall Rank</div>
-                <div className="text-xl font-semibold num text-[var(--text-primary)]">
-                  {rank != null ? `#${rank}` : "—"}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[200px]">Posición en el ranking global de todos los modelos evaluados en benchlm.ai.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="relative overflow-hidden rounded-lg p-3 flex flex-col justify-center transition-all duration-300 hover:bg-[var(--bg-overlay)] cursor-help group">
-                <div className="eyebrow mb-1">Confidence</div>
-                <div className="flex items-center h-7 mt-0.5">
-                  <ConfidenceDots confidence={confidence} />
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[200px]">Nivel de confianza en los resultados (1-3). Depende de la varianza en los benchmarks y cantidad de pruebas realizadas.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="relative overflow-hidden rounded-lg p-3 flex flex-col justify-center transition-all duration-300 hover:bg-[var(--bg-overlay)] cursor-help group">
-                <div className="eyebrow mb-1">Benchmarks</div>
-                <div className="text-sm font-semibold num text-[var(--text-primary)]">
-                  {benchCount != null ? `${benchCount} verificados` : "—"}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-[200px]">Cantidad de datasets y tests independientes utilizados para componer el puntaje de este modelo.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-1">
+        <CompactMetricRow
+          icon={Trophy}
+          label="Display Score"
+          value={displayScore != null ? `${displayScore}/100` : "—"}
+          tooltip={<><div className="font-semibold mb-1">Score principal</div>Puntaje global consolidado por benchlm.ai, ponderado en base a 8 dimensiones de rendimiento.</>}
+        />
+        <CompactMetricRow
+          icon={Hash}
+          label="Overall Rank"
+          value={rank != null ? `#${rank}` : "—"}
+          tooltip={<><div className="font-semibold mb-1">Ranking global</div>Posición en el ranking global de todos los modelos evaluados en benchlm.ai.</>}
+        />
+        <CompactMetricRow
+          icon={Activity}
+          label="Confidence"
+          value={<div className="flex items-center h-4 mt-1 justify-end"><ConfidenceDots confidence={confidence} /></div>}
+          tooltip={<><div className="font-semibold mb-1">Nivel de confianza</div>Nivel de confianza en los resultados (1-3). Depende de la varianza en los benchmarks y cantidad de pruebas realizadas.</>}
+        />
+        <CompactMetricRow
+          icon={Library}
+          label="Benchmarks"
+          value={benchCount != null ? `${benchCount} verificados` : "—"}
+          tooltip={<><div className="font-semibold mb-1">Datasets verificados</div>Cantidad de datasets y tests independientes utilizados para componer el puntaje de este modelo.</>}
+        />
       </div>
 
       {/* 8-category progress bars */}
@@ -148,27 +121,28 @@ export function BenchlmProfileSection({ model }: { model: AIModel }) {
 
       {/* Footnotes & Link */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="space-y-1">
+        <div className="flex flex-col gap-1">
           {scorePerDollar != null && (
             <div className="text-[11px] text-[var(--text-secondary)]">
-              Score por $ de output: <span className="num font-bold text-[var(--text-primary)]">{scorePerDollar}</span>{" "}
-              <span className="opacity-70">(cross-validación de costo)</span>
+              Eficiencia de costo: <span className="font-mono text-[var(--text-primary)]">{scorePerDollar.toFixed(2)} score / $1</span> (estimado)
             </div>
           )}
-          {pricingNote != null && (
-            <div className="text-[11px] italic text-[var(--text-secondary)] opacity-80">
-              Nota de precio: {pricingNote}
+          {pricingNote && (
+            <div className="text-[11px] text-[var(--text-disabled)] italic">
+              {pricingNote}
             </div>
           )}
         </div>
+        
         {slug && (
           <a
             href={`https://benchlm.ai/models/${slug}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] border border-[var(--border-default)] transition-all px-3 py-1.5 rounded-lg shrink-0"
+            className="text-[11px] font-semibold text-[var(--brand-primary)] hover:underline flex items-center gap-1 self-start sm:self-auto bg-[var(--bg-overlay)] px-2 py-1 rounded"
           >
-            Ver en BenchLM <ExternalLink className="h-3.5 w-3.5" />
+            Ver en BenchLM
+            <ExternalLink className="h-3 w-3" />
           </a>
         )}
       </div>

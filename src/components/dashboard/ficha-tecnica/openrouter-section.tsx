@@ -36,26 +36,7 @@ const MODALITY_ICONS: Record<string, React.ReactNode> = {
   file: <Layers className="h-3.5 w-3.5" />,
 };
 
-function CompactRow({ label, value, tooltip }: { label: string; value: React.ReactNode; tooltip?: string }) {
-  const content = (
-    <div className="flex items-baseline justify-between py-1 border-b border-[var(--border-default)] last:border-0 group">
-      <span className="text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">{label}</span>
-      <span className="text-sm font-medium text-[var(--text-primary)] text-right">{value}</span>
-    </div>
-  );
-
-  if (!tooltip) return content;
-  return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="cursor-help">{content}</div>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs max-w-[250px]">{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
-}
+import { CompactMetricRow } from "./compact-metric-row";
 
 export function OpenRouterSection({ model }: { model: AIModel }) {
   const [showParams, setShowParams] = useState(false);
@@ -105,22 +86,22 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
           <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-disabled)] mb-2">Especificaciones</div>
           
           {model.orContextLength && (
-            <CompactRow 
+            <CompactMetricRow 
               label="Context Window" 
               value={<span className="font-mono">{(model.orContextLength / 1000).toFixed(0)}K</span>} 
             />
           )}
           {model.orMaxCompletion && (
-            <CompactRow 
+            <CompactMetricRow 
               label="Max Output" 
               value={<span className="font-mono">{(model.orMaxCompletion / 1000).toFixed(0)}K</span>} 
             />
           )}
           {model.orKnowledgeCutoff && (
-            <CompactRow label="Knowledge Cutoff" value={model.orKnowledgeCutoff} />
+            <CompactMetricRow label="Knowledge Cutoff" value={model.orKnowledgeCutoff} />
           )}
           {model.orIsModerated != null && (
-            <CompactRow 
+            <CompactMetricRow 
               label="Filtros de Seguridad" 
               value={model.orIsModerated ? "Moderado" : "Sin filtros"} 
             />
@@ -144,7 +125,7 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
           </div>
           
           {model.orTokenizer && (
-            <CompactRow label="Tokenizer" value={<span className="font-mono">{model.orTokenizer}</span>} />
+            <CompactMetricRow label="Tokenizer" value={<span className="font-mono">{model.orTokenizer}</span>} />
           )}
         </div>
 
@@ -154,16 +135,16 @@ export function OpenRouterSection({ model }: { model: AIModel }) {
           
           {hasPricing ? (
             <>
-              <CompactRow label="Input (Prompt)" value={<span className="font-mono">${model.orInputPrice?.toFixed(2) ?? "—"}</span>} />
-              <CompactRow label="Output (Completion)" value={<span className="font-mono">${model.orOutputPrice?.toFixed(2) ?? "—"}</span>} />
+              <CompactMetricRow label="Input (Prompt)" value={<span className="font-mono">${model.orInputPrice?.toFixed(2) ?? "—"}</span>} />
+              <CompactMetricRow label="Output (Completion)" value={<span className="font-mono">${model.orOutputPrice?.toFixed(2) ?? "—"}</span>} />
               {model.orCacheReadPrice != null && (
-                <CompactRow label="Cache Read" value={<span className="font-mono">${model.orCacheReadPrice.toFixed(2)}</span>} />
+                <CompactMetricRow label="Cache Read" value={<span className="font-mono">${model.orCacheReadPrice.toFixed(2)}</span>} />
               )}
               {model.orCacheWritePrice != null && (
-                <CompactRow label="Cache Write" value={<span className="font-mono">${model.orCacheWritePrice.toFixed(2)}</span>} />
+                <CompactMetricRow label="Cache Write" value={<span className="font-mono">${model.orCacheWritePrice.toFixed(2)}</span>} />
               )}
               {model.orWebSearchPrice != null && (
-                <CompactRow label="Web Search Fee" value={<span className="font-mono">${model.orWebSearchPrice.toFixed(3)}<span className="text-[10px] text-[var(--text-disabled)] font-sans ml-1">/req</span></span>} />
+                <CompactMetricRow label="Web Search Fee" value={<span className="font-mono">${model.orWebSearchPrice.toFixed(3)}<span className="text-[10px] text-[var(--text-disabled)] font-sans ml-1">/req</span></span>} />
               )}
             </>
           ) : (
