@@ -407,46 +407,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   </Section>
                 )}
 
-                {/* ====== EVALUACION DEL AUTOR ====== */}
-                <Section
-                  title="Evaluación del Autor (Benchmarks Nativos)"
-                  icon={Beaker}
-                  color="var(--color-indigo)"
-                  description="Benchmarks publicados por el propio creador en el formato model-index"
-                >
-                  {details.modelIndex && Array.isArray(details.modelIndex) && details.modelIndex.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {details.modelIndex.flatMap((entry: any) =>
-                        (entry.results || []).map((r: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1.5 text-xs">
-                            <span className="text-[var(--text-primary)] truncate">{r.dataset?.name ?? r.task?.name ?? "—"}</span>
-                            <span className="num font-mono font-semibold text-[var(--brand-primary)] shrink-0 ml-2">
-                              {r.metrics?.[0]?.value != null ? `${r.metrics[0].value}${r.metrics[0].type?.includes("acc") || r.metrics[0].type?.includes("score") ? "%" : ""}` : "—"}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-[var(--text-disabled)] italic">
-                      El autor no publicó benchmarks en formato nativo. Apóyate exclusivamente en Artificial Analysis para comparar el rendimiento.
-                    </div>
-                  )}
-                  {details.widgetData && details.widgetData.length > 0 && (
-                    <div className="mt-2">
-                      <div className="text-xs uppercase tracking-wider text-[var(--text-secondary)] mb-1">
-                        Prompts de ejemplo del autor
-                      </div>
-                      <div className="space-y-1">
-                        {details.widgetData.slice(0, 3).map((w, i) => (
-                          <div key={i} className="rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-2 py-1.5 text-xs font-mono text-[var(--text-primary)]">
-                            {w.text || w.content || JSON.stringify(w).slice(0, 100)}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </Section>
+
 
                 {/* ====== DETALLES TÉCNICOS ====== */}
                 <Section
