@@ -207,7 +207,7 @@ export function RecomendadorView() {
             PRD Parte 3 Módulo 1: the 8 task categories should be accessible
             directly, not only via free-text query classification. */}
         <div className="flex flex-wrap gap-1.5 pt-1">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] self-center mr-1">
+          <span className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] self-center mr-1">
             O elige una categoría:
           </span>
           {TASK_CATEGORIES.map((cat) => {
@@ -220,7 +220,7 @@ export function RecomendadorView() {
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
                   active
-                    ? "border-[var(--brand-primary)] bg-[var(--brand-primary-subtle)] text-[var(--brand-primary)]"
+                    ? "border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm"
                     : "border-[var(--border-default)] bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
                 )}
               >
@@ -248,7 +248,7 @@ export function RecomendadorView() {
         <>
       {/* Meta bar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
-        <Badge className="bg-[var(--brand-primary-subtle)] text-[var(--brand-primary)] border-[var(--brand-primary)] gap-1">
+        <Badge className="bg-[var(--bg-overlay)] text-[var(--text-primary)] border-[var(--border-default)] gap-1 shadow-sm">
           <Target className="h-3 w-3" />
           {/* P1B-ENGINE — prefer intent.label over the raw category key */}
           {result.intent?.label ?? result.categoryLabel}
@@ -299,7 +299,7 @@ export function RecomendadorView() {
             title={`AHP Consistency Ratio (Saaty 1980): CR = ${result.ahpCR.cr} | n = ${result.ahpCR.n} criterios | Umbral: < 0.1`}
           >
             <CheckCircle2 className="h-3 w-3" />
-            CR {result.ahpCR.cr.toFixed(4)} {result.ahpCR.passes ? "✓" : "✗"}
+            Consistencia: {result.ahpCR.passes ? "Alta" : "Baja"}
           </Badge>
         )}
         {result.multiIntent && (
@@ -317,7 +317,7 @@ export function RecomendadorView() {
             return (
               <span
                 key={key}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-overlay)] px-2 py-0.5 text-[10px] text-[var(--text-secondary)]"
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--bg-overlay)] px-2 py-0.5 text-xxs text-[var(--text-secondary)]"
                 title={label}
               >
                 <Icon className="h-3 w-3" />
@@ -326,7 +326,7 @@ export function RecomendadorView() {
             );
           })}
           {typeof result.detectedEntities.contextSizeHint === "number" && result.detectedEntities.contextSizeHint > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-info-bg)] px-2 py-0.5 text-[10px] text-[var(--color-info)] border border-[var(--color-info-border)]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-info-bg)] px-2 py-0.5 text-xxs text-[var(--color-info)] border border-[var(--color-info-border)]">
               <FileText className="h-3 w-3" />
               Contexto estimado: ~{formatContext(result.detectedEntities.contextSizeHint)}
             </span>
@@ -336,49 +336,47 @@ export function RecomendadorView() {
 
       {/* P1B-ENGINE — Top-3 categories mini bar chart (TF-IDF scores) */}
       {result.categories && result.categories.length > 0 && (
-        <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-1.5 mb-2 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
-              <Layers className="h-3 w-3" />
-              Top-3 categorías por score TF-IDF
-            </div>
-            <div className="space-y-1.5">
-              {result.categories.map((cat, i) => {
-                const maxScore = result.categories![0].score || 1;
-                const pct = (cat.score / maxScore) * 100;
-                const isTop = i === 0;
-                return (
-                  <div key={cat.category} className="flex items-center gap-2">
-                    <span className="text-xs w-44 shrink-0 truncate" title={cat.label}>
-                      {isTop && <span className="text-[var(--brand-primary)] mr-1">●</span>}
-                      {cat.label}
-                    </span>
-                    <div className="flex-1 h-2 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          backgroundColor: isTop
-                            ? "var(--brand-primary)"
-                            : "var(--text-secondary)",
-                        }}
-                      />
-                    </div>
-                    <span className="num text-[10px] w-12 text-right text-[var(--text-secondary)]">
-                      {cat.score.toFixed(3)}
-                    </span>
+        <details className="mb-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-[var(--text-primary)] flex items-center gap-2">
+            <Layers className="h-4 w-4 text-[var(--text-secondary)]" />
+            Top 3 intenciones detectadas
+          </summary>
+          <div className="mt-3 space-y-1.5">
+            {result.categories.map((cat, i) => {
+              const maxScore = result.categories![0].score || 1;
+              const pct = (cat.score / maxScore) * 100;
+              const isTop = i === 0;
+              return (
+                <div key={cat.category} className="flex items-center gap-2">
+                  <span className="text-xs w-44 shrink-0 truncate" title={cat.label}>
+                    {isTop && <span className="text-[var(--brand-primary)] mr-1">●</span>}
+                    {cat.label}
+                  </span>
+                  <div className="flex-1 h-2 rounded-full bg-[var(--bg-overlay)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        backgroundColor: isTop
+                          ? "var(--brand-primary)"
+                          : "var(--text-secondary)",
+                      }}
+                    />
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  <span className="num text-xxs w-12 text-right text-[var(--text-secondary)]">
+                    {cat.score.toFixed(3)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </details>
       )}
 
           {/* Explanation */}
-          <div className="rounded-xl border border-[var(--brand-primary)] bg-[var(--brand-primary-subtle)] px-4 py-3">
+          <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] px-4 py-3 shadow-sm">
             <div className="flex items-start gap-2">
-              <Brain className="h-4 w-4 mt-0.5 text-[var(--brand-primary)] shrink-0" />
+              <Brain className="h-4 w-4 mt-0.5 text-[var(--text-primary)] shrink-0" />
               <p className="text-sm text-[var(--text-primary)] leading-relaxed">
                 {result.explanation}
               </p>
@@ -435,13 +433,13 @@ export function RecomendadorView() {
                   {winner.rank === 1 && (
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--color-warning)] via-[var(--color-warning)] to-transparent" />
                   )}
-                  <CardContent className="p-5">
+                  <CardContent className="p-4">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl" aria-hidden>{medal}</span>
                         <div>
-                          <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                          <div className="text-xxs uppercase tracking-wider text-[var(--text-secondary)]">
                             Recomendación #{winner.rank}
                           </div>
                           <div className="text-xs font-mono text-[var(--text-secondary)]">
@@ -490,15 +488,15 @@ export function RecomendadorView() {
                     </div>
 
                     {/* Reasons */}
-                    <div className="space-y-1.5 mb-4">
-                      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                    <div className="space-y-1 mb-4">
+                      <div className="flex items-center gap-1 text-xxs uppercase tracking-wider text-[var(--text-secondary)]">
                         <ListFilter className="h-3 w-3" />
                         Por qué
                       </div>
                       {winner.reasons.map((reason, i) => (
                         <div key={i} className="flex items-start gap-1.5 text-xs text-[var(--text-primary)]">
                           <span className="text-[var(--brand-primary)] mt-0.5">→</span>
-                          <span className="leading-relaxed">{reason}</span>
+                          <span className="leading-tight">{reason}</span>
                         </div>
                       ))}
                     </div>
@@ -522,7 +520,7 @@ export function RecomendadorView() {
                         >
                           <Badge
                             variant="outline"
-                            className="text-[10px] gap-0.5 cursor-help"
+                            className="text-xxs gap-0.5 cursor-help"
                             style={
                               m.hfDisabled === true
                                 ? { color: "var(--color-error)", borderColor: "var(--color-error-border)" }
@@ -539,7 +537,7 @@ export function RecomendadorView() {
 
                     {/* HuggingFace adoption stats — click to open glossary */}
                     {(m.hfDownloads !== null && m.hfDownloads !== undefined) && (
-                      <div className="flex items-center gap-3 text-[11px] text-[var(--text-secondary)] mb-3 num">
+                      <div className="flex items-center gap-3 text-xxs text-[var(--text-secondary)] mb-3 num">
                         <button
                           type="button"
                           onClick={() => openGlossary("Descargas HF")}
@@ -667,17 +665,17 @@ function Metric({
 }) {
   return (
     <div className="rounded-lg bg-[var(--bg-elevated)] px-2.5 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] mb-0.5">
+      <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-0.5">
         {label}
       </div>
       <div className="flex items-baseline gap-1">
         <span
-          className="num text-sm font-semibold"
+          className="num text-base font-semibold"
           style={highlight ? { color: highlight } : undefined}
         >
           {value}
         </span>
-        {sub && <span className="text-[10px] text-[var(--text-secondary)]">{sub}</span>}
+        {sub && <span className="text-[9px] text-[var(--text-secondary)]">{sub}</span>}
       </div>
     </div>
   );
