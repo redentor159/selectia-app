@@ -14,7 +14,6 @@ import { AnalyticsView } from "@/components/dashboard/views/analytics-view";
 import { SimuladorRoiView } from "@/components/dashboard/views/simulador-roi-view";
 import { QrGeneratorView } from "@/components/dashboard/views/qr-generator-view";
 import { CalculadoraHardwareView } from "@/components/dashboard/views/calculadora-hardware-view";
-import { GuiaDecisionView } from "@/components/dashboard/views/guia-decision-view";
 import { EngineAnimationView } from "@/components/dashboard/views/engine-animation-view";
 import { GlossaryDialog } from "@/components/dashboard/glossary-dialog";
 import { HreTopsisExplained } from "@/components/dashboard/hre-topsis-explained";
@@ -40,7 +39,6 @@ export default function Home() {
             {activeView === "simulador-roi" && <SimuladorRoiView />}
             {activeView === "qr-generator" && <QrGeneratorView />}
             {activeView === "engine-animation" && <EngineAnimationView />}
-            {activeView === "guia-decision" && <GuiaDecisionView />}
           </div>
         </main>
       </div>

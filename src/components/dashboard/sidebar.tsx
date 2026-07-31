@@ -117,12 +117,6 @@ const NAV_SECTIONS: NavSection[] = [
         icon: PlayCircle,
         description: "Paso a paso: cómo decide el motor",
       },
-      {
-        id: "guia-decision",
-        label: "Guía de Decisión",
-        icon: Compass,
-        description: "Tiers de costo-calidad (informativo)",
-      },
     ],
   },
 ];
