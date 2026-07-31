@@ -106,8 +106,7 @@ export type ViewId =
   | "analytics"
   | "simulador-roi"
   | "qr-generator"
-  | "engine-animation"
-  | "guia-decision";
+  | "engine-animation";
 
 interface DashboardState {
   // User context

@@ -1079,7 +1079,7 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "ZeroEval",
     category: "Benchmark",
-    aliases: ["zeroeval.com", "LLM Stats"],
+    aliases: ["zeroeval.com", "LLM Stats", "Confiabilidad ZeroEval", "Reliability", "Confiabilidad de producción"],
     definition:
       "Servicio que monitorea llamadas reales a APIs de LLMs en producción y reporta métricas: failure_rate, P95 latency, throughput, total_calls. 130 modelos monitoreados. SelectIA usa estos datos para el criterio 8 (reliability) y para alertas de confiabilidad. Es la única fuente de datos de producción real.",
     example: "Claude Sonnet 5 en ZeroEval: 169 llamadas, 10.7% failure rate, P95=5.4s, 102 tok/s.",
@@ -1334,7 +1334,7 @@ export const GLOSSARY: GlossaryTerm[] = [
     definition:
       "Torneo de matemáticas de Harvard y MIT para estudiantes de secundaria. Problemas extremadamente difíciles (más que AIME). BenchLM usa hmmtFeb2026 para evaluar modelos top en matemáticas de competición. Modelos top obtienen 30-50% — es uno de los benchmarks más discriminativos.",
     example: "Problema HMMT puede requerir teoría de grafos, geometría avanzada y creatividad matemática en 10 minutos.",
-    related: ["AIME", "MMLU-Pro", "BenchLM", "AIME"],
+    related: ["AIME", "MMLU-Pro", "BenchLM"],
   },
   {
     term: "LiveCodeBench",

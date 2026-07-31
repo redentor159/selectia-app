@@ -415,4 +415,7 @@ export interface FilterState {
   // Reliability = 1 - failure_rate (when ZeroEval has data) or 0.95 baseline (when null).
   // 0 = filter disabled. Range: 0 to 0.99 (0.95 = green, 0.85 = yellow, <0.85 = red).
   minReliability?: number;
+  minBenchLmScore?: number;
+  hideAbandoned?: boolean;
+  architecture?: "all" | "dense" | "moe";
 }
