@@ -33,30 +33,32 @@ interface CapabilityItem {
 }
 
 const CAPABILITY_ITEMS: CapabilityItem[] = [
-  { key: "toolUse", icon: Wrench, label: "🔧 Tool Use", description: "Puede llamar funciones externas (APIs, calculadoras, bases de datos)" },
-  { key: "vision", icon: Eye, label: "👁️ Visión", description: "Puede analizar imágenes, fotos, diagramas o planos" },
-  { key: "jsonMode", icon: Braces, label: "📋 JSON Mode", description: "Puede generar respuestas en formato estructurado (JSON)" },
-  { key: "reasoning", icon: Brain, label: "🧠 Razonamiento", description: "Puede pensar paso a paso antes de responder" },
-  { key: "audioInput", icon: Mic, label: "🎤 Audio Input", description: "Puede recibir audio como entrada (voz)" },
-  { key: "audioOutput", icon: Volume2, label: "🔊 Audio Output", description: "Puede generar audio como respuesta (voz)" },
-  { key: "pdf", icon: FileText, label: "📄 Documentos", description: "Puede leer y analizar PDFs y documentos" },
-  { key: "webSearch", icon: Globe, label: "🌐 Web Search", description: "Puede buscar en internet en tiempo real" },
-  { key: "interleavedReasoning", icon: RefreshCw, label: "🔄 Interleaved", description: "Puede alternar entre pensar y responder en partes" },
-  { key: "extendedThinking", icon: Zap, label: "⚡ Extended Thinking", description: "Puede 'pensar' más tiempo para tareas complejas" },
+  { key: "toolUse", icon: Wrench, label: "Tool Use", description: "Puede llamar funciones externas (APIs, calculadoras, bases de datos)" },
+  { key: "vision", icon: Eye, label: "Visión", description: "Puede analizar imágenes, fotos, diagramas o planos" },
+  { key: "jsonMode", icon: Braces, label: "JSON Mode", description: "Puede generar respuestas en formato estructurado (JSON)" },
+  { key: "reasoning", icon: Brain, label: "Razonamiento", description: "Puede pensar paso a paso antes de responder" },
+  { key: "audioInput", icon: Mic, label: "Audio Input", description: "Puede recibir audio como entrada (voz)" },
+  { key: "audioOutput", icon: Volume2, label: "Audio Output", description: "Puede generar audio como respuesta (voz)" },
+  { key: "pdf", icon: FileText, label: "Documentos", description: "Puede leer y analizar PDFs y documentos" },
+  { key: "webSearch", icon: Globe, label: "Web Search", description: "Puede buscar en internet en tiempo real" },
+  { key: "interleavedReasoning", icon: RefreshCw, label: "Interleaved", description: "Puede alternar entre pensar y responder en partes" },
+  { key: "extendedThinking", icon: Zap, label: "Extended Thinking", description: "Puede 'pensar' más tiempo para tareas complejas" },
 ];
 
 interface CapabilityIconsProps {
   model: AIModel;
   size?: "sm" | "md";
+  effectiveCaps?: Capabilities;
 }
 
-export function CapabilityIcons({ model, size = "sm" }: CapabilityIconsProps) {
+export function CapabilityIcons({ model, size = "sm", effectiveCaps }: CapabilityIconsProps) {
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const caps = effectiveCaps ?? model.capabilities;
   return (
     <TooltipProvider delayDuration={100}>
       <div className="flex flex-nowrap items-center gap-0.5 overflow-hidden">
         {CAPABILITY_ITEMS.map((item) => {
-          const active = model.capabilities[item.key];
+          const active = caps[item.key];
           const Icon = item.icon;
           return (
             <Tooltip key={item.key}>

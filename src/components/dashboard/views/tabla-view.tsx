@@ -20,20 +20,21 @@ import {
   formatPricePerMillion,
 } from "@/lib/format";
 import { ProviderLogo } from "../provider-logo";
-import { LicenseBadge, FreeAccessBadge, CapabilityIcons, InferenceProviders } from "../model-badges";
+import { CapabilityIcons } from "../model-badges";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
 import {
   Search, X, SlidersHorizontal, ArrowUpDown, ArrowUp, ArrowDown,
   Copy, Check, GitCompareArrows, Database, RotateCcw, CheckCircle2,
   Download, Star, FolderOpen, Monitor,
   Wrench, Eye, Braces, Brain, Mic, Volume2, FileText, Globe, RefreshCw, Zap,
-  ShieldCheck, Stethoscope, Heart, Flame, TrendingUp,
+  ShieldCheck, Stethoscope, Heart, Flame, TrendingUp, Activity, ChevronDown, Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -44,6 +45,35 @@ import type { AIModel, FilterState, LicenseType, Capabilities, CurrencyRate } fr
 type SortKey = keyof AIModel | "blendedUsd" | "efficiencyCost";
 type SortDir = "asc" | "desc" | null;
 
+// Formats a raw parameter count (from HuggingFace safetensors) into a human-readable string
+function formatParamsFromNumber(n: number | null | undefined): string | null {
+  if (n == null) return null;
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9) return `${Math.round(n / 1e9)}B`;
+  if (n >= 1e6) return `${Math.round(n / 1e6)}M`;
+  return String(n);
+}
+
+// Derives live capability flags from OpenRouter API data.
+// Falls back to static model.capabilities when OR coverage is missing.
+function getEffectiveCapabilities(model: AIModel): import("@/lib/types").Capabilities {
+  const base = model.capabilities;
+  if (!model.orModelId) return base; // No OR coverage — use static
+  return {
+    toolUse: model.orSupportedParameters?.includes("tools") ?? base.toolUse,
+    vision: model.orInputModalities?.includes("image") ?? base.vision,
+    jsonMode: (model.orSupportedParameters?.includes("response_format") ||
+               model.orSupportedParameters?.includes("structured_outputs")) ?? base.jsonMode,
+    reasoning: (model.orReasoningMandatory === true || model.orReasoningDefaultEnabled === true) || base.reasoning,
+    audioInput: model.orInputModalities?.includes("audio") ?? base.audioInput,
+    audioOutput: model.orOutputModalities?.includes("audio") ?? base.audioOutput,
+    pdf: base.pdf, // No OR equivalent
+    webSearch: (model.orWebSearchPrice != null) || base.webSearch,
+    interleavedReasoning: base.interleavedReasoning, // No OR equivalent
+    extendedThinking: ((model.orReasoningEfforts?.length ?? 0) > 0) || base.extendedThinking,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // PERFORMANCE (gap P2A-TABLA) — lightweight inline virtualization.
 // 220 rows × 20 columns = 4400 cells; rendering all of them on every filter
@@ -52,7 +82,7 @@ type SortDir = "asc" | "desc" | null;
 // ---------------------------------------------------------------------------
 const ROW_HEIGHT = 54; // px — compact single-line capabilities + logo + text
 const VISIBLE_BUFFER = 15; // rows rendered above & below the viewport to hide scroll flicker
-const COLUMN_COUNT = 23; // Modelo…Estado + Confiab. + Downloads + Likes + Ficha + compare button = 23 cells per row
+const COLUMN_COUNT = 20; // Modelo… + Confiab. + Downloads + Likes + Ficha + compare button = 20 cells per row
 
 // Full 10-capability multi-select (gap #14). Mirrors CAPABILITY_ITEMS in
 // model-badges.tsx so the filter UI shows the same icons/labels as the row.
@@ -89,6 +119,9 @@ const DEFAULT_FILTERS: FilterState = {
   minEloVotes: 0, maxEloCi: 30,
   hardwareFilterVram: 0,
   minReliability: 0,
+  minBenchLmScore: 0,
+  hideAbandoned: false,
+  architecture: "all",
 };
 
 export function TablaView() {
@@ -134,7 +167,7 @@ export function TablaView() {
     if (filters.licenses.length > 0) result = result.filter((m) => filters.licenses.includes(m.license));
     if (filters.freeAccess !== "all") result = result.filter((m) => m.freeAccess === filters.freeAccess);
     if (filters.maxPrice < 1000) result = result.filter((m) => { const b = computeBlendedUsd(m); return b === 0 || b <= filters.maxPrice; });
-    if (filters.minContext > 0) result = result.filter((m) => m.contextWindow >= filters.minContext);
+    if (filters.minContext > 0) result = result.filter((m) => (m.orContextLength ?? m.contextWindow) >= filters.minContext);
     if (filters.minIntelligence > 0) result = result.filter((m) => (m.intelligenceIndex ?? 0) >= filters.minIntelligence);
     if (filters.minSpeed > 0) result = result.filter((m) => (m.speedTps ?? 0) >= filters.minSpeed);
     // Capabilities multi-select (gap #14) — replaces the old reasoningOnly /
@@ -144,13 +177,30 @@ export function TablaView() {
     if (filters.capabilities.length > 0) {
       const caps = filters.capabilities as (keyof Capabilities)[];
       if (capabilitiesLogic === "and") {
-        result = result.filter((m) => caps.every((c) => m.capabilities[c]));
+        result = result.filter((m) => { const ec = getEffectiveCapabilities(m); return caps.every((c) => ec[c]); });
       } else {
-        result = result.filter((m) => caps.some((c) => m.capabilities[c]));
+        result = result.filter((m) => { const ec = getEffectiveCapabilities(m); return caps.some((c) => ec[c]); });
       }
     }
     if (filters.minEloVotes > 0) result = result.filter((m) => (m.eloVotes ?? 0) >= filters.minEloVotes);
     if (filters.maxEloCi < 30) result = result.filter((m) => m.eloCi === null || m.eloCi <= filters.maxEloCi);
+    if ((filters.minBenchLmScore ?? 0) > 0) result = result.filter((m) => (m.benchlmDisplayScore ?? 0) >= filters.minBenchLmScore!);
+    if (filters.hideAbandoned) {
+      const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      result = result.filter((m) => {
+        if (m.benchlmSupersededBy) return false;
+        if (m.hfLastModified) {
+          const modDate = new Date(m.hfLastModified).getTime();
+          if (now - modDate > ONE_YEAR_MS) return false;
+        }
+        return true;
+      });
+    }
+    if (filters.architecture && filters.architecture !== "all") {
+      if (filters.architecture === "moe") result = result.filter((m) => m.isMoE === true);
+      if (filters.architecture === "dense") result = result.filter((m) => !m.isMoE);
+    }
     // Filtro 13 — Cabe en Mi Hardware (Función C del MD de HuggingFace)
     // When active (hardwareFilterVram > 0), exclude models whose most aggressive
     // reasonable quantization (Q2_K = 0.35 bytes/param × 1.2 overhead) still
@@ -288,8 +338,7 @@ export function TablaView() {
           <table className="w-full table-dense">
             <thead className="bg-[var(--bg-elevated)] sticky top-0 z-40">
               <tr>
-                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} />
-                <Th label="Licencia" />
+                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky />
                 <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
                 <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
                 <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
@@ -303,9 +352,6 @@ export function TablaView() {
                 <Th label="Cutoff" />
                 <Th label="Params" />
                 <Th label="Capacidades" />
-                <Th label="Acceso" sortKey="freeAccess" currentSort={sortKey} dir={sortDir} onSort={handleSort} />
-                <Th label="Proveedores" />
-                <Th label="Estado" sortKey="active" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="center" />
                 <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" onClickGlossary={() => openGlossary("Confiabilidad ZeroEval")} />
                 <Th label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
                 <Th label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
@@ -367,10 +413,63 @@ interface FilterPanelProps {
   onCapabilitiesLogicChange: (l: "and" | "or") => void;
 }
 
+const ProviderMultiSelect = ({ providers, selected, onChange }: { providers: string[], selected: string[], onChange: (s: string[]) => void }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = providers.filter(p => p.toLowerCase().includes(search.toLowerCase()));
+  
+  return (
+    <div className="relative w-full">
+      <Button 
+        variant="outline" 
+        className="w-full justify-between h-8 text-xs bg-[var(--bg-elevated)]"
+        onClick={() => setOpen(!open)}
+      >
+        <span className="truncate">
+          {selected.length === 0 ? "Todos los proveedores" : `${selected.length} seleccionados`}
+        </span>
+        <ChevronDown className="h-3 w-3 opacity-50" />
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full mt-1 w-full sm:w-64 z-50 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] shadow-md p-2">
+            <Input 
+              placeholder="Buscar proveedor..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              className="h-7 text-xs mb-2 bg-[var(--bg-overlay)] border-none" 
+            />
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {filtered.map(p => {
+                const isActive = selected.includes(p);
+                return (
+                  <label key={p} className="flex items-center gap-2 text-xs p-1 hover:bg-[var(--bg-overlay)] rounded cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={isActive} 
+                      onChange={() => onChange(isActive ? selected.filter(x => x !== p) : [...selected, p])} 
+                      className="accent-[var(--brand-accent)]"
+                    />
+                    {p}
+                  </label>
+                );
+              })}
+              {filtered.length === 0 && <div className="text-xs text-[var(--text-secondary)] p-1">No hay resultados</div>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const FilterPanel = memo(function FilterPanel({
   appliedFilters, providers, onApply, onReset, onLiveSearch, capabilitiesLogic, onCapabilitiesLogicChange,
 }: FilterPanelProps) {
   const [draft, setDraft] = useState<FilterState>(appliedFilters);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
   const update = useCallback((patch: Partial<FilterState>) => { setDraft((prev) => ({ ...prev, ...patch })); }, []);
 
   // ----- Live search: useDeferredValue keeps the input responsive while the
@@ -386,7 +485,6 @@ const FilterPanel = memo(function FilterPanel({
   const pendingCount = useMemo(() => {
     let c = 0;
     // NOTE: search is excluded — it's applied live via onLiveSearch.
-    if (draft.freeAccess !== appliedFilters.freeAccess) c++;
     if (draft.maxPrice !== appliedFilters.maxPrice) c++;
     if (draft.minIntelligence !== appliedFilters.minIntelligence) c++;
     if (draft.minContext !== appliedFilters.minContext) c++;
@@ -395,9 +493,11 @@ const FilterPanel = memo(function FilterPanel({
     if (draft.maxEloCi !== appliedFilters.maxEloCi) c++;
     if ((draft.hardwareFilterVram ?? 0) !== (appliedFilters.hardwareFilterVram ?? 0)) c++;
     if ((draft.minReliability ?? 0) !== (appliedFilters.minReliability ?? 0)) c++;
+    if ((draft.minBenchLmScore ?? 0) !== (appliedFilters.minBenchLmScore ?? 0)) c++;
+    if ((draft.hideAbandoned ?? false) !== (appliedFilters.hideAbandoned ?? false)) c++;
+    if ((draft.architecture ?? "all") !== (appliedFilters.architecture ?? "all")) c++;
     if (draft.minKnowledgeCutoff !== appliedFilters.minKnowledgeCutoff) c++;
     if (JSON.stringify([...draft.providers].sort()) !== JSON.stringify([...appliedFilters.providers].sort())) c++;
-    if (JSON.stringify([...draft.licenses].sort()) !== JSON.stringify([...appliedFilters.licenses].sort())) c++;
     if (JSON.stringify([...draft.capabilities].sort()) !== JSON.stringify([...appliedFilters.capabilities].sort())) c++;
     return c;
   }, [draft, appliedFilters]);
@@ -438,119 +538,80 @@ const FilterPanel = memo(function FilterPanel({
   return (
     <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
       <CardContent className="p-4">
+        {/* === FILTROS BÁSICOS === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">Búsqueda</label>
+            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Búsqueda</span></label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
-              <Input value={draft.search} onChange={(e) => update({ search: e.target.value })} placeholder="Nombre, proveedor… (búsqueda en vivo)" className="h-8 pl-8 text-xs bg-[var(--bg-elevated)]" />
+              <Input value={draft.search} onChange={(e) => update({ search: e.target.value })} placeholder="Nombre, proveedor… (en vivo)" className="h-7 pl-8 text-xs bg-[var(--bg-elevated)]" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">Acceso gratuito</label>
-            <select value={draft.freeAccess} onChange={(e) => update({ freeAccess: e.target.value as FilterState["freeAccess"] })} className="h-8 w-full rounded-md border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]">
-              <option value="all">Todos</option><option value="free-100">Solo 100% gratis</option><option value="free-limited">Tier gratis</option><option value="free-registration">Gratis c/registro</option><option value="paid-only">Solo pago</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Precio blended máx.</span><span className="num text-[var(--text-primary)]">{draft.maxPrice >= 1000 ? "Sin límite" : `$${draft.maxPrice}/M`}</span></label>
-            <input type="range" min={0} max={1000} step={5} value={draft.maxPrice} onChange={(e) => update({ maxPrice: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Intelligence mín.</span><span className="num text-[var(--text-primary)]">{draft.minIntelligence === 0 ? "Cualquiera" : draft.minIntelligence}</span></label>
-            <input type="range" min={0} max={60} step={5} value={draft.minIntelligence} onChange={(e) => update({ minIntelligence: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Contexto mín.</span><span className="num text-[var(--text-primary)]">{draft.minContext === 0 ? "Cualquiera" : formatContext(draft.minContext)}</span></label>
-            <input type="range" min={0} max={2000000} step={16000} value={draft.minContext} onChange={(e) => update({ minContext: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Velocidad mín.</span><span className="num text-[var(--text-primary)]">{draft.minSpeed === 0 ? "Cualquiera" : `${draft.minSpeed} tok/s`}</span></label>
-            <input type="range" min={0} max={350} step={10} value={draft.minSpeed} onChange={(e) => update({ minSpeed: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Votos Elo mín.</span><span className="num text-[var(--text-primary)]">{draft.minEloVotes === 0 ? "Cualquiera" : formatVotes(draft.minEloVotes)}</span></label>
-            <input type="range" min={0} max={50000} step={1000} value={draft.minEloVotes} onChange={(e) => update({ minEloVotes: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Confianza Elo máx. (±)</span><span className="num text-[var(--text-primary)]">{draft.maxEloCi >= 30 ? "Cualquiera" : `±${draft.maxEloCi}`}</span></label>
-            <input type="range" min={3} max={30} step={1} value={draft.maxEloCi} onChange={(e) => update({ maxEloCi: Number(e.target.value) })} className="w-full accent-[var(--brand-accent)]" />
-          </div>
-        </div>
-
-        {/* FILTRO 13 — Cabe en Mi Hardware (Función C del MD de HuggingFace) */}
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-          <div className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium mb-2 flex items-center gap-1.5">
-            <Monitor className="h-3.5 w-3.5" />
-            Filtro 13 · Cabe en Mi Hardware
-            {(draft.hardwareFilterVram ?? 0) > 0 && <span className="num text-[var(--brand-primary)]">(activo)</span>}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-[var(--text-secondary)]">Tu GPU</label>
-              <select
-                value={String(draft.hardwareFilterVram ?? 0)}
-                onChange={(e) => update({ hardwareFilterVram: Number(e.target.value) })}
-                className="w-full h-9 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs"
-              >
-                <option value="0">— Filtro desactivado —</option>
-                <option value="8">GPU 8 GB (RTX 3060/4060)</option>
-                <option value="12">GPU 12 GB (RTX 3060 12GB)</option>
-                <option value="16">GPU 16 GB (RTX 4060 Ti)</option>
-                <option value="24">GPU 24 GB (RTX 3090/4090)</option>
-                <option value="48">GPU 48 GB (A6000)</option>
-                <option value="80">GPU 80 GB (A100/H100)</option>
-              </select>
-            </div>
-            <div className="text-[10px] text-[var(--text-secondary)] self-center leading-relaxed">
-              {(draft.hardwareFilterVram ?? 0) > 0 ? (
-                <>Excluye modelos cuyo cálculo en cuantización <b>Q2_K</b> (más agresiva, 85% calidad) aún supera tu VRAM. Modelos sin parámetros exactos se mantienen.</>
-              ) : (
-                <>Activa para excluir modelos que no caben en tu GPU <b>en ninguna cuantización razonable</b> (Q2_K o mejor).</>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* FILTRO 14 — Confiabilidad mínima (ZeroEval, Función K del plan v2.0) */}
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-          <div className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium mb-2 flex items-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Filtro 14 · Confiabilidad mínima (ZeroEval)
-            {(draft.minReliability ?? 0) > 0 && <span className="num text-[var(--brand-primary)]">(activo)</span>}
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] text-[var(--text-secondary)] flex justify-between">
-              <span>Reliability mín.</span>
-              <span className="num text-[var(--text-primary)] font-medium">
-                {(draft.minReliability ?? 0) === 0 ? "Desactivado" : `≥ ${(draft.minReliability ?? 0)}%`}
-              </span>
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={99}
-              step={1}
-              value={draft.minReliability ?? 0}
-              onChange={(e) => update({ minReliability: Number(e.target.value) })}
-              className="w-full accent-[var(--brand-accent)]"
-              aria-label="Confiabilidad mínima (ZeroEval)"
+            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Precio blended máx.</span></label>
+            <div className="flex items-center justify-between space-x-4">
+            <Slider 
+              min={0} 
+              max={1000} 
+              step={5} 
+              value={[draft.maxPrice]} 
+              onValueChange={([val]) => update({ maxPrice: val })} 
+              className="flex-1" 
             />
-            <div className="flex justify-between text-[9px] text-[var(--text-disabled)]">
-              <span>0% (desactivado)</span>
-              <span>95% (🟢)</span>
-              <span>99%</span>
+            <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">
+              {draft.maxPrice === 1000 ? '∞' : `$${draft.maxPrice}`}
+            </span>
+          </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Intelligence mín.</span></label>
+            <div className="flex items-center justify-between space-x-4">
+            <Slider 
+              min={0} 
+              max={100} 
+              step={5} 
+              value={[draft.minIntelligence]} 
+              onValueChange={([val]) => update({ minIntelligence: val })} 
+              className="flex-1" 
+            />
+            <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">
+              {draft.minIntelligence === 0 ? '-' : draft.minIntelligence}
+            </span>
+          </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Contexto mín.</span></label>
+            <div className="flex items-center justify-between space-x-4">
+              <Slider 
+                min={0} 
+                max={2000000} 
+                step={16000} 
+                value={[draft.minContext]} 
+                onValueChange={([val]) => update({ minContext: val })} 
+                className="flex-1" 
+              />
+              <span className="text-[var(--text-primary)] font-mono text-xs w-14 text-right shrink-0">
+                {draft.minContext === 0 ? '-' : formatContext(draft.minContext)}
+              </span>
             </div>
           </div>
-          <p className="mt-1.5 text-[10px] text-[var(--text-secondary)] leading-relaxed">
-            Filtra modelos por reliability = 1 − failure_rate. Modelos sin datos de ZeroEval se tratan como 95% (baseline).
-          </p>
         </div>
 
-        {/* CAPABILITIES multi-select (gap #14) — 10 checkboxes + AND/OR logic */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+          <div className="space-y-1.5">
+             <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Proveedores</span></label>
+             <ProviderMultiSelect providers={providers} selected={draft.providers} onChange={(s) => update({ providers: s })} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Cutoff mínimo</span></label>
+            <input type="month" value={draft.minKnowledgeCutoff} onChange={(e) => update({ minKnowledgeCutoff: e.target.value })} className="h-7 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]" />
+          </div>
+        </div>
+
+        {/* CAPABILITIES multi-select (Básico) */}
         <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
               Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
             </div>
             <div className="flex items-center gap-1">
@@ -567,7 +628,7 @@ const FilterPanel = memo(function FilterPanel({
               >Cualquiera (OR)</button>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {FILTER_CAPABILITY_ITEMS.map((item) => {
               const checked = draft.capabilities.includes(item.key);
               const Icon = item.icon;
@@ -575,37 +636,125 @@ const FilterPanel = memo(function FilterPanel({
                 <label key={item.key} className={cn("flex items-center gap-1.5 cursor-pointer text-xs rounded-md px-2 py-1.5 border transition-colors", checked ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
                   <input type="checkbox" checked={checked} onChange={() => toggleCapability(item.key)} className="accent-[var(--brand-accent)]" />
                   <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{item.label}</span>
+                  <span>{item.label}</span>
                 </label>
               );
             })}
           </div>
+
         </div>
 
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)] grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">Cutoff mínimo</label>
-            <input type="month" value={draft.minKnowledgeCutoff} onChange={(e) => update({ minKnowledgeCutoff: e.target.value })} className="h-8 w-full rounded-md border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]" />
-          </div>
+        {/* Toggle Avanzado */}
+        <div className="mt-3 flex justify-center">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)]" 
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? "Ocultar filtros avanzados" : "Mostrar filtros avanzados"}
+            <ChevronDown className={cn("ml-1 h-3 w-3 transition-transform", showAdvanced && "rotate-180")} />
+          </Button>
         </div>
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-          <div className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium mb-2">Proveedores</div>
-          <div className="flex flex-wrap gap-1.5">
-            {providers.map((p, idx) => {
-              const active = draft.providers.includes(p);
-              return <button key={p + "-" + idx} onClick={() => { const n = active ? draft.providers.filter((x) => x !== p) : [...draft.providers, p]; update({ providers: n }); }} className={cn("rounded-full px-2.5 py-0.5 text-xs border transition-colors", active ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>{p}</button>;
-            })}
+
+        {/* === FILTROS AVANZADOS === */}
+        {showAdvanced && (
+          <div className="animate-in fade-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5 mt-3 pt-4 border-t border-[var(--border-default)]">
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Velocidad de generación en tokens por segundo (basado en benchmarks)"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <div className="flex items-center justify-between space-x-4">
+                  <Slider min={0} max={100} step={5} value={[draft.minSpeed]} onValueChange={([val]) => update({ minSpeed: val })} className="flex-1" />
+                  <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.minSpeed === 0 ? '-' : draft.minSpeed}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Número mínimo de batallas evaluadas en Chatbot Arena"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <div className="flex items-center justify-between space-x-4">
+                  <Slider min={0} max={100000} step={1000} value={[draft.minEloVotes]} onValueChange={([val]) => update({ minEloVotes: val })} className="flex-1" />
+                  <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{draft.minEloVotes === 0 ? '-' : `${(draft.minEloVotes/1000).toFixed(0)}k`}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Margen de error del puntaje Elo (menor = más confiable)"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
+                <div className="flex items-center justify-between space-x-4">
+                  <Slider min={3} max={30} step={1} value={[draft.maxEloCi]} onValueChange={([val]) => update({ maxEloCi: val })} className="flex-1" />
+                  <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.maxEloCi >= 30 ? '-' : `±${draft.maxEloCi}`}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).">
+                  <span>ZeroEval mín. <span className="cursor-help opacity-50">(?)</span></span>
+                </label>
+                <div className="flex items-center justify-between space-x-4">
+                  <Slider min={0} max={99} step={1} value={[draft.minReliability ?? 0]} onValueChange={([val]) => update({ minReliability: val })} className="flex-1" />
+                  <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{(draft.minReliability ?? 0) === 0 ? '-' : `≥${(draft.minReliability ?? 0)}%`}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.">
+                  <span>Hardware (VRAM) <span className="cursor-help opacity-50">(?)</span></span>
+                </label>
+                <select
+                  value={String(draft.hardwareFilterVram ?? 0)}
+                  onChange={(e) => update({ hardwareFilterVram: Number(e.target.value) })}
+                  className="w-full h-7 rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                >
+                  <option value="0">— Filtro desactivado —</option>
+                  <option value="8">8 GB (RTX 3060/4060)</option>
+                  <option value="12">12 GB (RTX 3060 12GB)</option>
+                  <option value="16">16 GB (RTX 4060 Ti)</option>
+                  <option value="24">24 GB (RTX 3090/4090)</option>
+                  <option value="48">48 GB (A6000)</option>
+                  <option value="80">80 GB (A100/H100)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
+                  <span>BenchLM mín.</span>
+                </label>
+                <div className="flex items-center justify-between space-x-4">
+                  <Slider min={0} max={90} step={5} value={[draft.minBenchLmScore ?? 0]} onValueChange={([val]) => update({ minBenchLmScore: val })} className="flex-1" />
+                  <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{(draft.minBenchLmScore ?? 0) === 0 ? '-' : `≥${(draft.minBenchLmScore ?? 0)}`}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
+                  <span>Arquitectura</span>
+                </label>
+                <select
+                  value={draft.architecture ?? "all"}
+                  onChange={(e) => update({ architecture: e.target.value as "all" | "dense" | "moe" })}
+                  className="w-full h-7 rounded border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
+                >
+                  <option value="all">Todas</option>
+                  <option value="dense">Solo Denso</option>
+                  <option value="moe">Solo MoE</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5 flex flex-col justify-end">
+                <label className="flex items-center gap-2 h-7 cursor-pointer text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={draft.hideAbandoned ?? false}
+                    onChange={(e) => update({ hideAbandoned: e.target.checked })}
+                    className="accent-[var(--brand-accent)] h-3.5 w-3.5 rounded border-[var(--border-default)] bg-[var(--bg-elevated)]"
+                  />
+                  Ocultar modelos obsoletos/abandonados
+                </label>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-          <div className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)] font-medium mb-2">Licencias</div>
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(LICENSE_META) as LicenseType[]).map((l) => {
-              const meta = LICENSE_META[l]; const active = draft.licenses.includes(l);
-              return <button key={l} onClick={() => { const n = active ? draft.licenses.filter((x) => x !== l) : [...draft.licenses, l]; update({ licenses: n }); }} className={cn("rounded-full px-2.5 py-0.5 text-xs border transition-colors flex items-center gap-1.5", active ? "" : "opacity-50 hover:opacity-100")} style={{ color: meta.color, backgroundColor: active ? meta.bgColor : "var(--bg-elevated)", borderColor: active ? meta.borderColor : "var(--border-default)" }}><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: meta.color }} />{meta.label}</button>;
-            })}
-          </div>
-        </div>
+        )}
+
+        {/* Footer Actions */}
         <div className="mt-3 flex items-center justify-between gap-2 pt-3 border-t border-[var(--border-default)]">
           <div className="flex items-center gap-2 flex-wrap">
             {pendingCount > 0 ? <Badge className="bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)] text-[10px]">{pendingCount} cambio{pendingCount !== 1 ? "s" : ""} sin aplicar</Badge> : <span className="flex items-center gap-1 text-[10px] text-[var(--color-success)]"><CheckCircle2 className="h-3 w-3" />Filtros aplicados</span>}
@@ -622,7 +771,7 @@ const FilterPanel = memo(function FilterPanel({
               )}
             </div>
           </div>
-          <Button size="sm" onClick={() => onApply(draft)} disabled={pendingCount === 0} className="h-8 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-[var(--on-accent)] disabled:opacity-40"><CheckCircle2 className="h-3.5 w-3.5" />Aplicar filtros</Button>
+          <Button size="sm" onClick={() => onApply(draft)} disabled={pendingCount === 0} className="h-8 bg-[var(--brand-accent)] hover:bg-[var(--brand-accent-hover)] text-white disabled:opacity-40"><CheckCircle2 className="h-3.5 w-3.5" />Aplicar filtros</Button>
         </div>
       </CardContent>
     </Card>
@@ -669,7 +818,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
       onDoubleClick={() => onOpenFichaTecnica?.(m.id)}
       title="Doble click para ver ficha técnica"
     >
-      <td>
+      <td className="sticky left-0 z-10 bg-[var(--bg-surface)] group-hover:bg-[var(--bg-overlay)] transition-colors">
         <div className="flex items-center gap-2 min-w-[180px]">
           <ProviderLogo model={m} size={24} />
           <div className="min-w-0">
@@ -680,7 +829,9 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="text-[10px]" title="">💾</span>
+                      <div className="inline-flex items-center justify-center translate-y-[2px]">
+                        <Save className="h-3.5 w-3.5 text-[var(--brand-primary)] opacity-80 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs">
                       Caching de prompts disponible (cache hit)
@@ -757,12 +908,11 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
           </div>
         </div>
       </td>
-      <td><LicenseBadge license={m.license} licenseName={m.licenseName} /></td>
       <td className="text-right num font-medium" style={blended === 0 ? { color: "var(--color-success)" } : undefined}>
         {blended === 0 ? "Gratis" : <BlendedCell model={m} blended={blended} currency={currency} />}
       </td>
       <td className="text-right num text-[var(--text-secondary)]">{blended > 0 && m.intelligenceIndex ? (blended / m.intelligenceIndex).toFixed(3) : "—"}</td>
-      <td className="text-right num text-[var(--text-secondary)]">{formatContext(m.contextWindow)}</td>
+      <td className="text-right num text-[var(--text-secondary)]">{formatContext(m.orContextLength ?? m.contextWindow)}</td>
       <td className="text-right num font-semibold" style={{ color: getIntelligenceColor(m.intelligenceIndex) }}>{m.intelligenceIndex?.toFixed(1) ?? "—"}</td>
       <td className="text-right num">{m.codingIndex?.toFixed(1) ?? "—"}</td>
       <td className="text-right num">{m.agenticIndex?.toFixed(1) ?? "—"}</td>
@@ -770,12 +920,15 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
       <td className="text-right num text-[var(--text-secondary)]"><TtftCell ttftMs={m.ttftMs} ttftAnswerMs={m.ttftAnswerMs ?? null} endToEndMs={m.endToEndMs ?? null} /></td>
       <td className="text-right">{m.elo ? (<TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="num font-medium cursor-help" style={{ color: getEloColor(m.elo) }}>{m.elo}</span></TooltipTrigger><TooltipContent side="top" className="text-xs">{formatEloConfidence(m.elo, m.eloCi, m.eloVotes)}</TooltipContent></Tooltip></TooltipProvider>) : <span className="text-[var(--text-disabled)]">—</span>}</td>
       <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.eloCi ? `±${m.eloCi}` : "—"}{m.eloVotes ? <div className="text-[9px] text-[var(--text-disabled)]">{formatVotes(m.eloVotes)} votos</div> : null}</td>
-      <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.knowledgeCutoff ?? "—"}</td>
-      <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.parameters ? <span>{m.parameters}{m.isMoE ? " MoE" : ""}</span> : "—"}</td>
-      <td><CapabilityIcons model={m} /></td>
-      <td><FreeAccessBadge freeAccess={m.freeAccess} /></td>
-      <td><InferenceProviders model={m} /></td>
-      <td className="text-center">{m.active ? <span className="inline-flex items-center gap-1 text-[10px] text-[var(--color-success)]"><span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />Activo</span> : <span className="inline-flex items-center gap-1 text-[10px] text-[var(--text-disabled)]"><span className="h-1.5 w-1.5 rounded-full bg-[var(--text-disabled)]" />Desc.</span>}</td>
+      <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.orKnowledgeCutoff ?? m.knowledgeCutoff ?? "—"}</td>
+      <td className="text-right num text-[var(--text-secondary)] text-[11px]">
+        {(() => {
+          const fromHf = formatParamsFromNumber(m.hfParameters);
+          const display = fromHf ?? m.parameters;
+          return display ? <span>{display}{m.isMoE ? " MoE" : ""}</span> : <span className="text-[var(--text-disabled)]">—</span>;
+        })()}
+      </td>
+      <td><CapabilityIcons model={m} effectiveCaps={getEffectiveCapabilities(m)} /></td>
       {/* Confiab. — ZeroEval production reliability dot (Función K, Phase 4A.1.a) */}
       <td className="text-center">
         {m.zeroevalFailureRate != null ? (
@@ -882,7 +1035,9 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                 <span className="cursor-help inline-flex items-center gap-0.5">
                   {formatCompact(m.hfDownloads)}
                   {m.hfTrendingScore != null && m.hfTrendingScore > 50 && (
-                    <span title="En tendencia (alta velocidad reciente de adopción)">🔥</span>
+                    <span title="En tendencia (alta velocidad reciente de adopción)">
+                      <Flame className="h-3 w-3 text-[#ff7b00]" />
+                    </span>
                   )}
                 </span>
               </TooltipTrigger>
@@ -891,7 +1046,9 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                 <div className="text-[10px] opacity-80 space-y-0.5">
                   <div>{m.hfDownloads.toLocaleString("es-PE")} descargas (acumulado)</div>
                   {m.hfTrendingScore != null && (
-                    <div>📊 Trending score: {m.hfTrendingScore.toFixed(1)} {m.hfTrendingScore > 50 ? "(🔥 alta velocidad reciente)" : "(velocidad normal)"}</div>
+                    <div className="flex items-center gap-1">
+                      <Activity className="h-3 w-3" /> Trending score: {m.hfTrendingScore.toFixed(1)} {m.hfTrendingScore > 50 ? <span className="flex items-center gap-0.5 text-[#ff7b00]"><Flame className="h-3 w-3" /> (alta velocidad)</span> : "(velocidad normal)"}
+                    </div>
                   )}
                   <div className="opacity-70 italic">Downloads = adopción acumulada · Trending = velocidad reciente</div>
                 </div>
@@ -981,8 +1138,14 @@ function TtftCell({ ttftMs, ttftAnswerMs, endToEndMs }: { ttftMs: number | null;
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="cursor-help inline-flex flex-col items-end leading-tight">
-            <span className="inline-flex items-center gap-0.5">⚡ {formatMs(ttftMs)}</span>
-            <span className="text-[10px] inline-flex items-center gap-0.5" style={{ color: "var(--color-warning)" }}>💬 {formatMs(ttftAnswerMs!)}</span>
+            <span className="inline-flex items-center gap-0.5">
+              <Zap className="h-2.5 w-2.5 text-[var(--brand-primary)]" />
+              {formatMs(ttftMs)}
+            </span>
+            <span className="text-[10px] inline-flex items-center gap-0.5" style={{ color: "var(--color-warning)" }}>
+              <Brain className="h-2.5 w-2.5" />
+              {formatMs(ttftAnswerMs!)}
+            </span>
           </span>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">{tooltip}</TooltipContent>
@@ -993,7 +1156,7 @@ function TtftCell({ ttftMs, ttftAnswerMs, endToEndMs }: { ttftMs: number | null;
 
 // ============ TH ============
 
-function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip, onClickGlossary }: { label: React.ReactNode; sortKey?: SortKey; currentSort?: SortKey; dir?: SortDir; onSort?: (k: SortKey) => void; align?: "left" | "right" | "center"; tooltip?: string; onClickGlossary?: () => void; }) {
+function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip, onClickGlossary, sticky }: { label: React.ReactNode; sortKey?: SortKey; currentSort?: SortKey; dir?: SortDir; onSort?: (k: SortKey) => void; align?: "left" | "right" | "center"; tooltip?: string; onClickGlossary?: () => void; sticky?: boolean; }) {
   const isSortable = !!sortKey; const isActive = sortKey === currentSort;
   const content = (
     <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
@@ -1004,7 +1167,7 @@ function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip,
   );
   return (
     <th
-      className={cn("whitespace-nowrap select-none", isSortable && "cursor-pointer hover:text-[var(--text-primary)]")}
+      className={cn("whitespace-nowrap select-none", isSortable && "cursor-pointer hover:text-[var(--text-primary)]", sticky && "sticky left-0 z-30 bg-[var(--bg-elevated)]")}
       onClick={() => isSortable && onSort?.(sortKey!)}
       style={{ textAlign: align }}
     >
@@ -1013,9 +1176,11 @@ function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip,
           <TooltipTrigger asChild>
             <span tabIndex={0}>{content}</span>
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-xs">
-            {tooltip}
-            {onClickGlossary && <span className="block mt-1 text-[var(--brand-primary)]">Click ⓘ para más en el glosario</span>}
+          <TooltipContent side="top" className="max-w-xs text-xs pointer-events-none flex flex-col gap-1.5">
+            <div>{tooltip}</div>
+            {onClickGlossary && (
+              <div className="opacity-75 font-medium">Click ⓘ para más en el glosario</div>
+            )}
           </TooltipContent>
         </Tooltip>
       ) : content}
