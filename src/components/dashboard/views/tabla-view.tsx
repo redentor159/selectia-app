@@ -1200,7 +1200,7 @@ function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip,
   );
   return (
     <th
-      className={cn("whitespace-nowrap select-none", isSortable && "cursor-pointer hover:text-[var(--text-primary)]", sticky && "sticky left-0 z-30 bg-[var(--bg-elevated)]", className)}
+      className={cn("whitespace-nowrap", isSortable && "cursor-pointer hover:text-[var(--text-primary)]", sticky && "sticky left-0 z-30 bg-[var(--bg-elevated)]", className)}
       onClick={() => isSortable && onSort?.(sortKey!)}
       style={{ textAlign: align }}
     >
