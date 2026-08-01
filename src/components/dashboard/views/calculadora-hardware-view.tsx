@@ -37,8 +37,8 @@ const QUANT_TABLE = [
 
 // Common GPUs in the Peruvian/LatAm market
 const GPU_OPTIONS = [
-  { label: "Sin GPU (solo CPU)", vram: 0 },
-  { label: "GPU integrada (compartida)", vram: 4 },
+  { label: "Sin GPU (0 GB, solo CPU)", vram: 0 },
+  { label: "GPU integrada (Ej. 4-8 GB compartidos)", vram: 4 },
   { label: "RTX 3060 / 4060 (8-12 GB)", vram: 12 },
   { label: "RTX 4060 Ti (16 GB)", vram: 16 },
   { label: "RTX 3090 / 4090 (24 GB)", vram: 24 },
