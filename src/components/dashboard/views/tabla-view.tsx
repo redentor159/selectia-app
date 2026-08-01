@@ -389,8 +389,8 @@ export function TablaView() {
                 <Th className="col-hfHealth" label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
                 <Th className="col-hfDownloads" label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
                 <Th className="col-hfLikes" label={<span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> LK</span>} sortKey="hfLikes" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Likes en HuggingFace Hub (señal de calidad)" onClickGlossary={() => openGlossary("Likes HF")} />
-                <Th label={<FileText className="h-3 w-3" />} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" />
-                <Th label="" />
+                <Th label={<span className="flex items-center gap-1"><FileText className="h-3 w-3" /> Ficha</span>} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" />
+                <Th label="Comp." />
               </tr>
             </thead>
             <tbody>
@@ -945,10 +945,10 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
         {blended === 0 ? "Gratis" : <BlendedCell model={m} blended={blended} currency={currency} />}
       </td>
       <td className="text-right num text-[var(--text-secondary)]">{blended > 0 && m.intelligenceIndex ? (blended / m.intelligenceIndex).toFixed(3) : "—"}</td>
-      <td className="text-right num text-[var(--text-secondary)]">{formatContext(m.orContextLength ?? m.contextWindow)}</td>
+      <td className="col-contextWindow text-right num text-[var(--text-secondary)]">{formatContext(m.orContextLength ?? m.contextWindow)}</td>
       <td className="text-right num font-semibold" style={{ color: getIntelligenceColor(m.intelligenceIndex) }}>{m.intelligenceIndex?.toFixed(1) ?? "—"}</td>
-      <td className="text-right num">{m.codingIndex?.toFixed(1) ?? "—"}</td>
-      <td className="text-right num">{m.agenticIndex?.toFixed(1) ?? "—"}</td>
+      <td className="col-codingIndex text-right num">{m.codingIndex?.toFixed(1) ?? "—"}</td>
+      <td className="col-agenticIndex text-right num">{m.agenticIndex?.toFixed(1) ?? "—"}</td>
       <td className="col-speedTps text-right num">{m.speedTps ?? "—"}</td>
       <td className="col-ttftMs text-right num text-[var(--text-secondary)]"><TtftCell ttftMs={m.ttftMs} ttftAnswerMs={m.ttftAnswerMs ?? null} endToEndMs={m.endToEndMs ?? null} /></td>
       <td className="col-elo text-right">{m.elo ? (<TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="num font-medium cursor-help" style={{ color: getEloColor(m.elo) }}>{m.elo}</span></TooltipTrigger><TooltipContent side="top" className="text-xs">{formatEloConfidence(m.elo, m.eloCi, m.eloVotes)}</TooltipContent></Tooltip></TooltipProvider>) : <span className="text-[var(--text-disabled)]">—</span>}</td>
@@ -961,9 +961,9 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
           return display ? <span>{display}{m.isMoE ? " MoE" : ""}</span> : <span className="text-[var(--text-disabled)]">—</span>;
         })()}
       </td>
-      <td><CapabilityIcons model={m} effectiveCaps={getEffectiveCapabilities(m)} /></td>
+      <td className="col-capabilities"><CapabilityIcons model={m} effectiveCaps={getEffectiveCapabilities(m)} /></td>
       {/* Confiab. — ZeroEval production reliability dot (Función K, Phase 4A.1.a) */}
-      <td className="text-center">
+      <td className="col-reliability text-center">
         {m.zeroevalFailureRate != null ? (
           (() => {
             const reliability = 1 - m.zeroevalFailureRate!;
@@ -1011,7 +1011,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
         )}
       </td>
       {/* Salud del Repo — HuggingFace health indicator (Función A: disabled, gated 3 estados, lastModified, createdAt + 18m threshold) */}
-      <td className="text-center">
+      <td className="col-hfHealth text-center">
         {m.hfDisabled !== null && m.hfDisabled !== undefined ? (
           <TooltipProvider delayDuration={100}>
             <Tooltip>
@@ -1060,7 +1060,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
           <span className="text-[var(--text-disabled)] text-xxs">—</span>
         )}
       </td>
-      <td className="text-right num text-xs whitespace-nowrap">
+      <td className="col-hfDownloads text-right num text-xs whitespace-nowrap">
         {m.hfDownloads != null ? (
           <TooltipProvider delayDuration={150}>
             <Tooltip>
@@ -1090,7 +1090,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
           </TooltipProvider>
         ) : <span className="text-[var(--text-disabled)]">—</span>}
       </td>
-      <td className="text-right num text-xs whitespace-nowrap">
+      <td className="col-hfLikes text-right num text-xs whitespace-nowrap">
         {m.hfLikes != null ? formatCompact(m.hfLikes) : <span className="text-[var(--text-disabled)]">—</span>}
       </td>
       <td className="text-center">
