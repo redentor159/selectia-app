@@ -4,6 +4,7 @@ import { Header } from "@/components/dashboard/header";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Footer } from "@/components/dashboard/footer";
 import { useDashboardStore } from "@/store/dashboard-store";
+import { cn } from "@/lib/utils";
 import { OverviewView } from "@/components/dashboard/views/overview-view";
 import { RecomendadorView } from "@/components/dashboard/views/recomendador-view";
 import { TablaView } from "@/components/dashboard/views/tabla-view";
@@ -27,7 +28,7 @@ export default function Home() {
       <div className="flex flex-1 flex-col lg:flex-row min-h-0">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-x-hidden">
-          <div className="mx-auto max-w-[1400px] px-4 lg:px-6 py-5 lg:py-6">
+          <div className={cn("mx-auto px-4 lg:px-6 py-5 lg:py-6 transition-all duration-300", activeView === "tabla" ? "max-w-full" : "max-w-[1400px]")}>
             {activeView === "overview" && <OverviewView />}
             {activeView === "recomendador" && <RecomendadorView />}
             {activeView === "tabla" && <TablaView />}

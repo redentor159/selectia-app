@@ -143,6 +143,9 @@ interface DashboardState {
   // Theme — 6 options: dark, light, dark-gray, light-gray, blanco-puro, negro-puro
   theme: "dark" | "light" | "dark-gray" | "light-gray" | "blanco-puro" | "negro-puro";
 
+  // Layout
+  isSidebarCollapsed: boolean;
+
   // Modals
   glossaryOpen: boolean;
   glossaryInitialTerm: string | null;
@@ -163,6 +166,7 @@ interface DashboardState {
   resetFilters: () => void;
   toggleTheme: () => void;
   setTheme: (t: "dark" | "light" | "dark-gray" | "light-gray" | "blanco-puro" | "negro-puro") => void;
+  toggleSidebar: () => void;
   openGlossary: (term?: string) => void;
   closeGlossary: () => void;
   openEngineExplained: () => void;
@@ -202,6 +206,7 @@ export const useDashboardStore = create<DashboardState>()(
       capabilitiesLogic: "and",
       modeManuallySet: false,
       theme: "light-gray",
+      isSidebarCollapsed: false,
       glossaryOpen: false,
       glossaryInitialTerm: null,
       engineExplainedOpen: false,
@@ -281,6 +286,7 @@ export const useDashboardStore = create<DashboardState>()(
           root.classList.add(t);
         }
       },
+      toggleSidebar: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
       openGlossary: (term) =>
         set({ glossaryOpen: true, glossaryInitialTerm: term ?? null }),
       closeGlossary: () =>
@@ -296,6 +302,7 @@ export const useDashboardStore = create<DashboardState>()(
         operationMode: state.operationMode,
         activeView: state.activeView,
         theme: state.theme,
+        isSidebarCollapsed: state.isSidebarCollapsed,
         customExchangeRates: state.customExchangeRates,
       }),
     }

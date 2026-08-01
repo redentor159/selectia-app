@@ -16,6 +16,8 @@ import {
   Layers,
   Cpu,
   PlayCircle,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -122,20 +124,23 @@ const NAV_SECTIONS: NavSection[] = [
 ];
 
 export function Sidebar() {
-  const { activeView, setActiveView, compareIds, openGlossary, openEngineExplained } =
+  const { activeView, setActiveView, compareIds, openGlossary, openEngineExplained, isSidebarCollapsed, toggleSidebar } =
     useDashboardStore();
 
   return (
     <TooltipProvider delayDuration={200}>
-      <nav className="flex lg:flex-col items-center lg:items-stretch gap-1 p-2 lg:p-3 lg:w-[240px] shrink-0 lg:border-r border-[var(--border-default)] lg:bg-[var(--bg-elevated)] overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible">
+      <nav className={cn(
+        "flex lg:flex-col items-center lg:items-stretch gap-1 p-2 lg:p-3 shrink-0 lg:border-r border-[var(--border-default)] lg:bg-[var(--bg-elevated)] overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible transition-all duration-300",
+        isSidebarCollapsed ? "lg:w-[68px]" : "lg:w-[240px]"
+      )}>
         {NAV_SECTIONS.map((section, sIdx) => (
           <div key={section.label} className="flex lg:flex-col items-center lg:items-stretch gap-1">
             {/* Section separator on desktop, spacer on mobile */}
             {sIdx > 0 && (
               <div className="hidden lg:block h-px bg-[var(--border-default)] my-2 mx-2" />
             )}
-            <div className="hidden lg:block px-2 pb-1 pt-1">
-              <div className="eyebrow text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+            <div className={cn("hidden px-2 pb-1 pt-1", !isSidebarCollapsed && "lg:block")}>
+              <div className="eyebrow text-[10px] uppercase tracking-wider text-[var(--text-secondary)] truncate">
                 {section.label}
               </div>
             </div>
@@ -164,15 +169,15 @@ export function Sidebar() {
                           active && "text-[var(--brand-primary)]"
                         )}
                       />
-                      <span className="hidden lg:block">{item.label}</span>
+                      <span className={cn("hidden", !isSidebarCollapsed && "lg:block truncate")}>{item.label}</span>
                       {item.id === "comparador" && compareIds.length > 0 && (
-                        <span className="hidden lg:flex ml-auto h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand-accent)] px-1.5 text-[10px] font-semibold text-[var(--on-accent)]">
+                        <span className={cn("hidden ml-auto h-5 min-w-5 items-center justify-center rounded-full bg-[var(--brand-accent)] px-1.5 text-[10px] font-semibold text-[var(--on-accent)]", !isSidebarCollapsed && "lg:flex")}>
                           {compareIds.length}
                         </span>
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className="lg:hidden">
+                  <TooltipContent side="right" className={cn("lg:hidden", isSidebarCollapsed && "lg:block")}>
                     {item.label}
                   </TooltipContent>
                 </Tooltip>
@@ -192,10 +197,10 @@ export function Sidebar() {
                 aria-label="Glosario"
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
-                <span className="hidden lg:block">Glosario</span>
+                <span className={cn("hidden", !isSidebarCollapsed && "lg:block truncate")}>Glosario</span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="lg:hidden">Glosario</TooltipContent>
+            <TooltipContent side={isSidebarCollapsed ? "right" : "top"} className={cn("lg:hidden", isSidebarCollapsed && "lg:block")}>Glosario</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -205,10 +210,28 @@ export function Sidebar() {
                 aria-label="Motor HRE-TOPSIS explicado"
               >
                 <Layers className="h-4 w-4 shrink-0" />
-                <span className="hidden lg:block">Motor HRE-TOPSIS</span>
+                <span className={cn("hidden", !isSidebarCollapsed && "lg:block truncate")}>Motor HRE-TOPSIS</span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="lg:hidden">Motor HRE-TOPSIS</TooltipContent>
+            <TooltipContent side={isSidebarCollapsed ? "right" : "top"} className={cn("lg:hidden", isSidebarCollapsed && "lg:block")}>Motor HRE-TOPSIS</TooltipContent>
+          </Tooltip>
+
+          <div className="hidden lg:block h-px bg-[var(--border-default)] my-1 w-full" />
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => toggleSidebar()}
+                className="hidden lg:flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)] transition-colors w-full shrink-0"
+                aria-label={isSidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+              >
+                {isSidebarCollapsed ? <PanelLeft className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+                <span className={cn("hidden", !isSidebarCollapsed && "lg:block truncate")}>Colapsar menú</span>
+              </button>
+            </TooltipTrigger>
+            {isSidebarCollapsed && (
+              <TooltipContent side="right">Expandir menú</TooltipContent>
+            )}
           </Tooltip>
         </div>
       </nav>

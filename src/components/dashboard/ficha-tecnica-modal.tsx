@@ -152,8 +152,8 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
         {model && (
           <div className="space-y-4">
             {/* Model header */}
-            <div className="relative overflow-hidden rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-4">
-              <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+            <div className="relative overflow-hidden rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-4 animate-in fade-in slide-in-from-top-4 duration-500 ease-out fill-mode-both">
+              <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transition-transform duration-700 hover:scale-110 hover:-rotate-12">
                 <FileCode2 className="w-24 h-24 text-[var(--text-primary)]" />
               </div>
               <div className="relative flex items-center gap-2 flex-wrap mb-2">
@@ -206,6 +206,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             {/* ====== ARTIFICIAL ANALYSIS ====== */}
             {model && !loading && (
               <Section
+                className="delay-75"
                 title="Artificial Analysis — Inteligencia y Rendimiento"
                 icon={Brain}
                 color="var(--brand-primary)"
@@ -218,6 +219,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             {/* ====== BENCHLM ====== */}
             {model && model.benchlmDisplayScore != null && !loading && (
               <Section
+                className="delay-100"
                 title="BenchLM — Perfil por Categoría"
                 icon={Trophy}
                 color="var(--brand-primary)"
@@ -230,6 +232,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             {/* ====== ZEROEVAL ====== */}
             {model && model.zeroevalFailureRate != null && !loading && (
               <Section
+                className="delay-150"
                 title="ZeroEval — Confiabilidad de Producción"
                 icon={Activity}
                 color="var(--color-success)"
@@ -242,6 +245,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             {/* ====== OPENROUTER ====== */}
             {model && model.orModelId != null && !loading && (
               <Section
+                className="delay-200"
                 title="OpenRouter — Catálogo y Capacidades"
                 icon={Cpu}
                 color="var(--brand-primary)"
@@ -257,6 +261,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
               {/* ====== CICLO DE VIDA ====== */}
               {model && (model.benchlmSupersededBy != null || model.benchlmIsCanonicalEntry === true) && !loading && (
                 <Section
+                  className="delay-300"
                   title="Ciclo de Vida del Modelo"
                   icon={RefreshCw}
                   color="var(--color-warning)"
@@ -270,6 +275,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 <>
                   {/* ====== ACTIVIDAD DEL ECOSISTEMA ====== */}
                   <Section
+                    className="delay-300"
                     title="Actividad del Ecosistema"
                     icon={Boxes}
                     color="var(--color-success)"
@@ -314,6 +320,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
 
                   {/* ====== ADOPCIÓN ====== */}
                   <Section
+                    className="delay-500"
                     title="Adopción Comunitaria"
                     icon={TrendingUp}
                     color="var(--brand-primary)"
@@ -344,6 +351,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   {/* ====== HARDWARE ====== */}
                   {details.safetensors && (
                     <Section
+                      className="delay-500"
                       title="Detalles de Hardware (safetensors)"
                       icon={HardDrive}
                       color="var(--color-warning)"
@@ -415,6 +423,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
               <div className="flex flex-col gap-4 mt-4">
                 {/* ====== DETALLES TÉCNICOS ====== */}
                 <Section
+                  className="delay-700"
                   title="Detalles Técnicos de Implementación"
                   icon={Library}
                   color="var(--color-teal)"
@@ -495,6 +504,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
 
                 {/* ====== SALUD DEL REPO ====== */}
                 <Section
+                  className="delay-700"
                   title="Salud y Vigencia del Repo"
                   icon={CheckCircle2}
                   color="var(--color-success)"
@@ -537,6 +547,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 {/* Tags */}
                 {details.tags && details.tags.length > 0 && (
                   <Section
+                    className="delay-1000"
                     title="Tags del repositorio"
                     icon={Hash}
                     color="var(--text-secondary)"
@@ -571,21 +582,23 @@ function Section({
   color,
   description,
   children,
+  className = "",
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   color: string;
   description: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="relative rounded-xl overflow-hidden bg-[var(--bg-surface)] border border-[var(--border-default)]">
-      <div className="px-4 py-3 border-b border-[var(--border-default)] bg-[var(--bg-elevated)]">
-        <div className="flex items-center gap-2">
-          <Icon className="h-3.5 w-3.5" style={{ color }} />
+    <div className={`relative rounded-xl overflow-hidden bg-[var(--bg-surface)] border border-[var(--border-default)] group transition-all duration-300 hover:shadow-sm hover:border-[var(--border-strong)] animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out fill-mode-both ${className}`}>
+      <div className="px-4 py-3 border-b border-[var(--border-default)] bg-[var(--bg-elevated)] transition-colors duration-300 group-hover:bg-[var(--bg-overlay)]">
+        <div className="flex items-center gap-2 transition-transform duration-300 group-hover:translate-x-0.5">
+          <Icon className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-110" style={{ color }} />
           <span className="eyebrow text-[var(--text-primary)]">{title}</span>
         </div>
-        <p className="text-xs text-[var(--text-disabled)] mt-1">{description}</p>
+        <p className="text-xs text-[var(--text-disabled)] mt-1 transition-colors duration-300 group-hover:text-[var(--text-secondary)]">{description}</p>
       </div>
       <div className="px-4 py-2">{children}</div>
     </div>

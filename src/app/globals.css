@@ -571,3 +571,20 @@
   background-size: 200% 100%;
   animation: shimmer 1.6s var(--ease-snappy) infinite;
 }
+
+/* Column Visibility Toggles for Tabla Maestra */
+.hide-col-contextWindow .col-contextWindow { display: none !important; }
+.hide-col-intelligenceIndex .col-intelligenceIndex { display: none !important; }
+.hide-col-codingIndex .col-codingIndex { display: none !important; }
+.hide-col-agenticIndex .col-agenticIndex { display: none !important; }
+.hide-col-speedTps .col-speedTps { display: none !important; }
+.hide-col-ttftMs .col-ttftMs { display: none !important; }
+.hide-col-elo .col-elo { display: none !important; }
+.hide-col-eloCi .col-eloCi { display: none !important; }
+.hide-col-knowledgeCutoff .col-knowledgeCutoff { display: none !important; }
+.hide-col-hfParameters .col-hfParameters { display: none !important; }
+.hide-col-capabilities .col-capabilities { display: none !important; }
+.hide-col-reliability .col-reliability { display: none !important; }
+.hide-col-hfHealth .col-hfHealth { display: none !important; }
+.hide-col-hfDownloads .col-hfDownloads { display: none !important; }
+.hide-col-hfLikes .col-hfLikes { display: none !important; }

@@ -24,11 +24,12 @@ import { CapabilityIcons } from "../model-badges";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
 import {
   Search, X, SlidersHorizontal, ArrowUpDown, ArrowUp, ArrowDown,
-  Copy, Check, GitCompareArrows, Database, RotateCcw, CheckCircle2,
+  Copy, Check, GitCompareArrows, Database, RotateCcw, CheckCircle2, Columns,
   Download, Star, FolderOpen, Monitor,
   Wrench, Eye, Braces, Brain, Mic, Volume2, FileText, Globe, RefreshCw, Zap,
   ShieldCheck, Stethoscope, Heart, Flame, TrendingUp, Activity, ChevronDown, Save,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +132,21 @@ export function TablaView() {
   const [sortKey, setSortKey] = useState<SortKey>("intelligenceIndex");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showFilters, setShowFilters] = useState(true);
+  const [visibleCols, setVisibleCols] = useState<Record<string, boolean>>({
+    contextWindow: true, intelligenceIndex: true, codingIndex: true, agenticIndex: true,
+    speedTps: true, ttftMs: true, elo: true, eloCi: false, knowledgeCutoff: false,
+    hfParameters: false, capabilities: true, reliability: true, hfHealth: false,
+    hfDownloads: false, hfLikes: false,
+  });
+
+  const COL_LABELS: Record<string, string> = {
+    contextWindow: "Contexto", intelligenceIndex: "Intel. Index", codingIndex: "Coding Index",
+    agenticIndex: "Agentic Index", speedTps: "Velocidad (TPS)", ttftMs: "TTFT", elo: "Elo",
+    eloCi: "Confianza Elo", knowledgeCutoff: "Cutoff", hfParameters: "Parámetros",
+    capabilities: "Capacidades", reliability: "Confiab. ZeroEval", hfHealth: "Salud Repo",
+    hfDownloads: "Descargas HF", hfLikes: "Likes HF",
+  };
+
   // Ficha Técnica modal state (Funciones D + E — lazy-load HF details)
   const [fichaTecnicaModelId, setFichaTecnicaModelId] = useState<string | null>(null);
   const handleOpenFichaTecnica = useCallback((modelId: string) => setFichaTecnicaModelId(modelId), []);
@@ -310,6 +326,22 @@ export function TablaView() {
             <SlidersHorizontal className="h-3.5 w-3.5" />
             {showFilters ? "Ocultar filtros" : "Mostrar filtros"}
           </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8" title="Mostrar/ocultar columnas">
+                <Columns className="h-3.5 w-3.5" /><span className="hidden sm:inline">Columnas</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 max-h-[300px] overflow-y-auto">
+              {Object.keys(COL_LABELS).map((col) => (
+                <DropdownMenuCheckboxItem key={col} checked={visibleCols[col]} onCheckedChange={(c) => setVisibleCols(p => ({ ...p, [col]: c }))}>
+                  {COL_LABELS[col]}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="h-8" title="Exportar CSV">
             <Download className="h-3.5 w-3.5" /><span className="hidden sm:inline">CSV</span>
           </Button>
@@ -335,27 +367,28 @@ export function TablaView() {
           className="overflow-auto"
           style={{ maxHeight: "calc(100vh - 220px)", minHeight: "320px" }}
         >
-          <table className="w-full table-dense">
+          {/* @ts-ignore */}
+          <table className={cn("w-full table-dense", Object.entries(visibleCols).filter(([_, v]) => !v).map(([k]) => `hide-col-${k}`).join(" "))}>
             <thead className="bg-[var(--bg-elevated)] sticky top-0 z-40">
               <tr>
                 <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky />
                 <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
                 <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Confianza" />
-                <Th label="Cutoff" />
-                <Th label="Params" />
-                <Th label="Capacidades" />
-                <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" onClickGlossary={() => openGlossary("Confiabilidad ZeroEval")} />
-                <Th label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
-                <Th label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
-                <Th label={<span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> LK</span>} sortKey="hfLikes" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Likes en HuggingFace Hub (señal de calidad)" onClickGlossary={() => openGlossary("Likes HF")} />
+                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-contextWindow" />
+                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-intelligenceIndex" />
+                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-codingIndex" />
+                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-agenticIndex" />
+                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-speedTps" />
+                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-ttftMs" />
+                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-elo" />
+                <Th label="Confianza" className="col-eloCi" />
+                <Th label="Cutoff" className="col-knowledgeCutoff" />
+                <Th label="Params" className="col-hfParameters" />
+                <Th label="Capacidades" className="col-capabilities" />
+                <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" className="col-reliability" onClickGlossary={() => openGlossary("Confiabilidad ZeroEval")} />
+                <Th className="col-hfHealth" label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
+                <Th className="col-hfDownloads" label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
+                <Th className="col-hfLikes" label={<span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> LK</span>} sortKey="hfLikes" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Likes en HuggingFace Hub (señal de calidad)" onClickGlossary={() => openGlossary("Likes HF")} />
                 <Th label={<FileText className="h-3 w-3" />} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" />
                 <Th label="" />
               </tr>
@@ -541,14 +574,14 @@ const FilterPanel = memo(function FilterPanel({
         {/* === FILTROS BÁSICOS === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Búsqueda</span></label>
+            <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Búsqueda</span></label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
               <Input value={draft.search} onChange={(e) => update({ search: e.target.value })} placeholder="Nombre, proveedor… (en vivo)" className="h-7 pl-8 text-xs bg-[var(--bg-elevated)]" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Precio blended máx.</span></label>
+            <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Precio blended máx.</span></label>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
               min={0} 
@@ -564,7 +597,7 @@ const FilterPanel = memo(function FilterPanel({
           </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Intelligence mín.</span></label>
+            <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Intelligence mín.</span></label>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
               min={0} 
@@ -580,7 +613,7 @@ const FilterPanel = memo(function FilterPanel({
           </div>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Contexto mín.</span></label>
+            <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Contexto mín.</span></label>
             <div className="flex items-center justify-between space-x-4">
               <Slider 
                 min={0} 
@@ -599,11 +632,11 @@ const FilterPanel = memo(function FilterPanel({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
           <div className="space-y-1.5">
-             <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Proveedores</span></label>
+             <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Proveedores</span></label>
              <ProviderMultiSelect providers={providers} selected={draft.providers} onChange={(s) => update({ providers: s })} />
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Cutoff mínimo</span></label>
+            <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between"><span>Cutoff mínimo</span></label>
             <input type="month" value={draft.minKnowledgeCutoff} onChange={(e) => update({ minKnowledgeCutoff: e.target.value })} className="h-7 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]" />
           </div>
         </div>
@@ -611,19 +644,19 @@ const FilterPanel = memo(function FilterPanel({
         {/* CAPABILITIES multi-select (Básico) */}
         <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
+            <div className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium">
               Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-[var(--text-secondary)]">Lógica:</span>
+              <span className="text-xxs text-[var(--text-secondary)]">Lógica:</span>
               <button
                 onClick={() => onCapabilitiesLogicChange("and")}
-                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                className={cn("rounded px-2 py-0.5 text-xxs border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
                 title="El modelo debe tener TODAS las capacidades seleccionadas"
               >Todas (AND)</button>
               <button
                 onClick={() => onCapabilitiesLogicChange("or")}
-                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                className={cn("rounded px-2 py-0.5 text-xxs border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
                 title="El modelo debe tener AL MENOS UNA de las capacidades seleccionadas"
               >Cualquiera (OR)</button>
             </div>
@@ -662,7 +695,7 @@ const FilterPanel = memo(function FilterPanel({
           <div className="animate-in fade-in slide-in-from-top-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5 mt-3 pt-4 border-t border-[var(--border-default)]">
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Velocidad de generación en tokens por segundo (basado en benchmarks)"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Velocidad de generación en tokens por segundo (basado en benchmarks)"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100} step={5} value={[draft.minSpeed]} onValueChange={([val]) => update({ minSpeed: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.minSpeed === 0 ? '-' : draft.minSpeed}</span>
@@ -670,7 +703,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Número mínimo de batallas evaluadas en Chatbot Arena"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Número mínimo de batallas evaluadas en Chatbot Arena"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100000} step={1000} value={[draft.minEloVotes]} onValueChange={([val]) => update({ minEloVotes: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{draft.minEloVotes === 0 ? '-' : `${(draft.minEloVotes/1000).toFixed(0)}k`}</span>
@@ -678,7 +711,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Margen de error del puntaje Elo (menor = más confiable)"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Margen de error del puntaje Elo (menor = más confiable)"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={3} max={30} step={1} value={[draft.maxEloCi]} onValueChange={([val]) => update({ maxEloCi: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.maxEloCi >= 30 ? '-' : `±${draft.maxEloCi}`}</span>
@@ -686,7 +719,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).">
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).">
                   <span>ZeroEval mín. <span className="cursor-help opacity-50">(?)</span></span>
                 </label>
                 <div className="flex items-center justify-between space-x-4">
@@ -696,7 +729,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.">
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between" title="Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.">
                   <span>Hardware (VRAM) <span className="cursor-help opacity-50">(?)</span></span>
                 </label>
                 <select
@@ -715,7 +748,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
                   <span>BenchLM mín.</span>
                 </label>
                 <div className="flex items-center justify-between space-x-4">
@@ -725,7 +758,7 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
+                <label className="text-xxs uppercase tracking-wider text-[var(--text-secondary)] font-medium flex justify-between">
                   <span>Arquitectura</span>
                 </label>
                 <select
@@ -757,7 +790,7 @@ const FilterPanel = memo(function FilterPanel({
         {/* Footer Actions */}
         <div className="mt-3 flex items-center justify-between gap-2 pt-3 border-t border-[var(--border-default)]">
           <div className="flex items-center gap-2 flex-wrap">
-            {pendingCount > 0 ? <Badge className="bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)] text-[10px]">{pendingCount} cambio{pendingCount !== 1 ? "s" : ""} sin aplicar</Badge> : <span className="flex items-center gap-1 text-[10px] text-[var(--color-success)]"><CheckCircle2 className="h-3 w-3" />Filtros aplicados</span>}
+            {pendingCount > 0 ? <Badge className="bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)] text-xxs">{pendingCount} cambio{pendingCount !== 1 ? "s" : ""} sin aplicar</Badge> : <span className="flex items-center gap-1 text-xxs text-[var(--color-success)]"><CheckCircle2 className="h-3 w-3" />Filtros aplicados</span>}
             <Button variant="ghost" size="sm" onClick={() => { setDraft(DEFAULT_FILTERS); onReset(); }} className="h-7 text-xs"><RotateCcw className="h-3 w-3" />Restablecer</Button>
             {showSaveInput ? (
               <div className="flex items-center gap-1"><input type="text" value={filterName} onChange={(e) => setFilterName(e.target.value)} placeholder="Nombre de vista" className="h-7 w-28 rounded-md border border-[var(--border-strong)] bg-[var(--bg-elevated)] px-2 text-xs outline-none focus:border-[var(--brand-primary)]" onKeyDown={(e) => e.key === "Enter" && handleSave()} autoFocus /><Button size="sm" onClick={handleSave} className="h-7 px-2 text-xs bg-[var(--color-success)] text-white"><Check className="h-3 w-3" /></Button><Button size="sm" variant="ghost" onClick={() => setShowSaveInput(false)} className="h-7 px-2 text-xs"><X className="h-3 w-3" /></Button></div>
@@ -854,22 +887,22 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                           e.stopPropagation();
                           if (onOpenSuccessorFicha) onOpenSuccessorFicha(m.benchlmSupersededBy!);
                         }}
-                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-tight cursor-help transition-colors"
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-xxs leading-tight cursor-help transition-colors"
                         style={{
                           backgroundColor: "rgba(245, 166, 35, 0.10)",
-                          color: "#f5a623",
+                          color: "var(--color-warning)",
                           border: "1px solid rgba(245, 166, 35, 0.20)",
                         }}
                         aria-label={`Reemplazado por ${m.benchlmSupersededByName ?? "modelo más nuevo"}`}
                         title={`Reemplazado por ${m.benchlmSupersededByName ?? "modelo más nuevo"}${onOpenSuccessorFicha ? " — click para ver ficha técnica" : ""}`}
                       >
-                        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: "#f5a623" }} aria-hidden />
+                        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: "var(--color-warning)" }} aria-hidden />
                         Reemplazado{m.benchlmSupersededByName ? ` por ${m.benchlmSupersededByName}` : ""}
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs max-w-[220px]">
                       <div className="font-medium">Reemplazado por modelo más nuevo</div>
-                      <div className="text-[10px] opacity-80">
+                      <div className="text-xxs opacity-80">
                         BenchLM marca este modelo como reemplazado por
                         {" "}{m.benchlmSupersededByName ?? m.benchlmSupersededBy}
                         {onOpenSuccessorFicha ? ". Click para abrir la ficha técnica del sucesor." : "."}
@@ -882,22 +915,22 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span
-                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[9px] leading-tight cursor-help"
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-xxs leading-tight cursor-help"
                         style={{
-                          backgroundColor: "rgba(0, 214, 111, 0.10)",
-                          color: "#00d66f",
-                          border: "1px solid rgba(0, 214, 111, 0.20)",
+                          backgroundColor: "var(--color-success-bg)",
+                          color: "var(--color-success)",
+                          border: "1px solid var(--color-success-border)",
                         }}
                         aria-label="Vigente — entrada canónica según BenchLM"
                         title="Vigente — entrada canónica según BenchLM"
                       >
-                        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: "#00d66f" }} aria-hidden />
+                        <span className="h-1 w-1 rounded-full" style={{ backgroundColor: "var(--color-success)" }} aria-hidden />
                         Vigente
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="text-xs max-w-[220px]">
                       <div className="font-medium">Entrada canónica</div>
-                      <div className="text-[10px] opacity-80">
+                      <div className="text-xxs opacity-80">
                         BenchLM confirma que este modelo es la versión vigente de su familia.
                       </div>
                     </TooltipContent>
@@ -908,7 +941,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
           </div>
         </div>
       </td>
-      <td className="text-right num font-medium" style={blended === 0 ? { color: "var(--color-success)" } : undefined}>
+      <td className="col-intelligenceIndex text-right num font-medium" style={blended === 0 ? { color: "var(--color-success)" } : undefined}>
         {blended === 0 ? "Gratis" : <BlendedCell model={m} blended={blended} currency={currency} />}
       </td>
       <td className="text-right num text-[var(--text-secondary)]">{blended > 0 && m.intelligenceIndex ? (blended / m.intelligenceIndex).toFixed(3) : "—"}</td>
@@ -916,12 +949,12 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
       <td className="text-right num font-semibold" style={{ color: getIntelligenceColor(m.intelligenceIndex) }}>{m.intelligenceIndex?.toFixed(1) ?? "—"}</td>
       <td className="text-right num">{m.codingIndex?.toFixed(1) ?? "—"}</td>
       <td className="text-right num">{m.agenticIndex?.toFixed(1) ?? "—"}</td>
-      <td className="text-right num">{m.speedTps ?? "—"}</td>
-      <td className="text-right num text-[var(--text-secondary)]"><TtftCell ttftMs={m.ttftMs} ttftAnswerMs={m.ttftAnswerMs ?? null} endToEndMs={m.endToEndMs ?? null} /></td>
-      <td className="text-right">{m.elo ? (<TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="num font-medium cursor-help" style={{ color: getEloColor(m.elo) }}>{m.elo}</span></TooltipTrigger><TooltipContent side="top" className="text-xs">{formatEloConfidence(m.elo, m.eloCi, m.eloVotes)}</TooltipContent></Tooltip></TooltipProvider>) : <span className="text-[var(--text-disabled)]">—</span>}</td>
-      <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.eloCi ? `±${m.eloCi}` : "—"}{m.eloVotes ? <div className="text-[9px] text-[var(--text-disabled)]">{formatVotes(m.eloVotes)} votos</div> : null}</td>
-      <td className="text-right num text-[var(--text-secondary)] text-[11px]">{m.orKnowledgeCutoff ?? m.knowledgeCutoff ?? "—"}</td>
-      <td className="text-right num text-[var(--text-secondary)] text-[11px]">
+      <td className="col-speedTps text-right num">{m.speedTps ?? "—"}</td>
+      <td className="col-ttftMs text-right num text-[var(--text-secondary)]"><TtftCell ttftMs={m.ttftMs} ttftAnswerMs={m.ttftAnswerMs ?? null} endToEndMs={m.endToEndMs ?? null} /></td>
+      <td className="col-elo text-right">{m.elo ? (<TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="num font-medium cursor-help" style={{ color: getEloColor(m.elo) }}>{m.elo}</span></TooltipTrigger><TooltipContent side="top" className="text-xs">{formatEloConfidence(m.elo, m.eloCi, m.eloVotes)}</TooltipContent></Tooltip></TooltipProvider>) : <span className="text-[var(--text-disabled)]">—</span>}</td>
+      <td className="col-eloCi text-right num text-[var(--text-secondary)] text-[11px]">{m.eloCi ? `±${m.eloCi}` : "—"}{m.eloVotes ? <div className="text-xxs text-[var(--text-disabled)]">{formatVotes(m.eloVotes)} votos</div> : null}</td>
+      <td className="col-knowledgeCutoff text-right num text-[var(--text-secondary)] text-[11px]">{m.orKnowledgeCutoff ?? m.knowledgeCutoff ?? "—"}</td>
+      <td className="col-hfParameters text-right num text-[var(--text-secondary)] text-[11px]">
         {(() => {
           const fromHf = formatParamsFromNumber(m.hfParameters);
           const display = fromHf ?? m.parameters;
@@ -961,7 +994,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
                   </TooltipTrigger>
                   <TooltipContent side="top" className="text-xs max-w-[260px]">
                     <div className="font-semibold mb-0.5">{dotLabel}</div>
-                    <div className="text-[10px] opacity-80 space-y-0.5">
+                    <div className="text-xxs opacity-80 space-y-0.5">
                       <div>Confiabilidad: <span className="num font-medium">{relPct}%</span></div>
                       <div>Failure rate: <span className="num font-medium">{frPct}%</span></div>
                       <div>P95 latencia: <span className="num font-medium">{p95}</span></div>
@@ -974,7 +1007,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
             );
           })()
         ) : (
-          <span className="text-[var(--text-disabled)] text-[10px]" title="Sin datos de ZeroEval">—</span>
+          <span className="text-[var(--text-disabled)] text-xxs" title="Sin datos de ZeroEval">—</span>
         )}
       </td>
       {/* Salud del Repo — HuggingFace health indicator (Función A: disabled, gated 3 estados, lastModified, createdAt + 18m threshold) */}
@@ -997,7 +1030,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[240px]">
                 <div className="font-semibold mb-0.5">Salud del Repo HF</div>
-                <div className="text-[10px] opacity-80 space-y-0.5">
+                <div className="text-xxs opacity-80 space-y-0.5">
                   <div>
                     {m.hfDisabled === true ? "🚫 Deshabilitado por HF" :
                      (m.hfGated as any) === "manual" ? "🔒 Gated (aprobación manual)" :
@@ -1024,7 +1057,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
             </Tooltip>
           </TooltipProvider>
         ) : (
-          <span className="text-[var(--text-disabled)] text-[10px]">—</span>
+          <span className="text-[var(--text-disabled)] text-xxs">—</span>
         )}
       </td>
       <td className="text-right num text-xs whitespace-nowrap">
@@ -1043,7 +1076,7 @@ const ModelRow = memo(function ModelRow({ model: m, currency, inCompare, onToggl
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs max-w-[220px]">
                 <div className="font-semibold mb-0.5">Adopción HF</div>
-                <div className="text-[10px] opacity-80 space-y-0.5">
+                <div className="text-xxs opacity-80 space-y-0.5">
                   <div>{m.hfDownloads.toLocaleString("es-PE")} descargas (acumulado)</div>
                   {m.hfTrendingScore != null && (
                     <div className="flex items-center gap-1">
@@ -1142,7 +1175,7 @@ function TtftCell({ ttftMs, ttftAnswerMs, endToEndMs }: { ttftMs: number | null;
               <Zap className="h-2.5 w-2.5 text-[var(--brand-primary)]" />
               {formatMs(ttftMs)}
             </span>
-            <span className="text-[10px] inline-flex items-center gap-0.5" style={{ color: "var(--color-warning)" }}>
+            <span className="text-xxs inline-flex items-center gap-0.5" style={{ color: "var(--color-warning)" }}>
               <Brain className="h-2.5 w-2.5" />
               {formatMs(ttftAnswerMs!)}
             </span>
@@ -1156,7 +1189,7 @@ function TtftCell({ ttftMs, ttftAnswerMs, endToEndMs }: { ttftMs: number | null;
 
 // ============ TH ============
 
-function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip, onClickGlossary, sticky }: { label: React.ReactNode; sortKey?: SortKey; currentSort?: SortKey; dir?: SortDir; onSort?: (k: SortKey) => void; align?: "left" | "right" | "center"; tooltip?: string; onClickGlossary?: () => void; sticky?: boolean; }) {
+function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip, onClickGlossary, sticky, className }: { label: React.ReactNode; sortKey?: SortKey; currentSort?: SortKey; dir?: SortDir; onSort?: (k: SortKey) => void; align?: "left" | "right" | "center"; tooltip?: string; onClickGlossary?: () => void; sticky?: boolean; className?: string; }) {
   const isSortable = !!sortKey; const isActive = sortKey === currentSort;
   const content = (
     <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
@@ -1167,7 +1200,7 @@ function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip,
   );
   return (
     <th
-      className={cn("whitespace-nowrap select-none", isSortable && "cursor-pointer hover:text-[var(--text-primary)]", sticky && "sticky left-0 z-30 bg-[var(--bg-elevated)]")}
+      className={cn("whitespace-nowrap select-none", isSortable && "cursor-pointer hover:text-[var(--text-primary)]", sticky && "sticky left-0 z-30 bg-[var(--bg-elevated)]", className)}
       onClick={() => isSortable && onSort?.(sortKey!)}
       style={{ textAlign: align }}
     >
