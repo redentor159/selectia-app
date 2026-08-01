@@ -570,7 +570,7 @@ const FilterPanel = memo(function FilterPanel({
 
   return (
     <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-      <CardContent className="p-3">
+      <CardContent className="px-3 pt-1.5 pb-1.5">
         {/* === FILTROS BÁSICOS === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
           <div className="space-y-1">
@@ -648,15 +648,15 @@ const FilterPanel = memo(function FilterPanel({
               Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-xxs text-[var(--text-secondary)]">Lógica:</span>
+              <span className="text-[10px] text-[var(--text-secondary)]">Lógica:</span>
               <button
                 onClick={() => onCapabilitiesLogicChange("and")}
-                className={cn("rounded px-2 py-0.5 text-xxs border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
                 title="El modelo debe tener TODAS las capacidades seleccionadas"
               >Todas (AND)</button>
               <button
                 onClick={() => onCapabilitiesLogicChange("or")}
-                className={cn("rounded px-2 py-0.5 text-xxs border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
                 title="El modelo debe tener AL MENOS UNA de las capacidades seleccionadas"
               >Cualquiera (OR)</button>
             </div>
