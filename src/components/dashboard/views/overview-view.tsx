@@ -619,12 +619,12 @@ function IngenieroOverview() {
                   tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
                   tickLine={false}
                   axisLine={{ stroke: "var(--border)" }}
-                  width={32}
+                  width={45}
                   label={{
                     value: "Índice (base 100)",
                     angle: -90,
                     position: "insideLeft",
-                    offset: 18,
+                    offset: 0,
                     fill: "var(--text-secondary)",
                     fontSize: 10,
                   }}
