@@ -314,7 +314,7 @@ export function TablaView() {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-2 animate-fade-in">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Database className="h-4 w-4 text-[var(--brand-primary)]" />
@@ -788,7 +788,7 @@ const FilterPanel = memo(function FilterPanel({
         )}
 
         {/* Footer Actions */}
-        <div className="mt-3 flex items-center justify-between gap-2 pt-3 border-t border-[var(--border-default)]">
+        <div className="mt-1 flex items-center justify-between gap-2 pt-2 border-t border-[var(--border-default)]">
           <div className="flex items-center gap-2 flex-wrap">
             {pendingCount > 0 ? <Badge className="bg-[var(--color-warning-bg)] text-[var(--color-warning)] border-[var(--color-warning-border)] text-xxs">{pendingCount} cambio{pendingCount !== 1 ? "s" : ""} sin aplicar</Badge> : <span className="flex items-center gap-1 text-xxs text-[var(--color-success)]"><CheckCircle2 className="h-3 w-3" />Filtros aplicados</span>}
             <Button variant="ghost" size="sm" onClick={() => { setDraft(DEFAULT_FILTERS); onReset(); }} className="h-7 text-xs"><RotateCcw className="h-3 w-3" />Restablecer</Button>
