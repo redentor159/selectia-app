@@ -570,17 +570,17 @@ const FilterPanel = memo(function FilterPanel({
 
   return (
     <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-      <CardContent className="p-4">
+      <CardContent className="p-3">
         {/* === FILTROS BÁSICOS === */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
+          <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Búsqueda</span></label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
               <Input value={draft.search} onChange={(e) => update({ search: e.target.value })} placeholder="Nombre, proveedor… (en vivo)" className="h-7 pl-8 text-xs bg-[var(--bg-elevated)]" />
             </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Precio blended máx.</span></label>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
@@ -596,7 +596,7 @@ const FilterPanel = memo(function FilterPanel({
             </span>
           </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Intelligence mín.</span></label>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
@@ -612,7 +612,7 @@ const FilterPanel = memo(function FilterPanel({
             </span>
           </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Contexto mín.</span></label>
             <div className="flex items-center justify-between space-x-4">
               <Slider 
@@ -630,20 +630,20 @@ const FilterPanel = memo(function FilterPanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-          <div className="space-y-1.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2 mt-2">
+          <div className="space-y-1">
              <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Proveedores</span></label>
              <ProviderMultiSelect providers={providers} selected={draft.providers} onChange={(s) => update({ providers: s })} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Cutoff mínimo</span></label>
             <input type="month" value={draft.minKnowledgeCutoff} onChange={(e) => update({ minKnowledgeCutoff: e.target.value })} className="h-7 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]" />
           </div>
         </div>
 
         {/* CAPABILITIES multi-select (Básico) */}
-        <div className="mt-3 pt-3 border-t border-[var(--border-default)]">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
+          <div className="flex items-center justify-between mb-1">
             <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
               Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
             </div>
@@ -666,7 +666,7 @@ const FilterPanel = memo(function FilterPanel({
               const checked = draft.capabilities.includes(item.key);
               const Icon = item.icon;
               return (
-                <label key={item.key} className={cn("flex items-center gap-1.5 cursor-pointer text-xs rounded-md px-2 py-1.5 border transition-colors", checked ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
+                <label key={item.key} className={cn("flex items-center gap-1.5 cursor-pointer text-xs rounded-md px-2 py-1 border transition-colors", checked ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
                   <input type="checkbox" checked={checked} onChange={() => toggleCapability(item.key)} className="accent-[var(--brand-accent)]" />
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   <span>{item.label}</span>
@@ -678,7 +678,7 @@ const FilterPanel = memo(function FilterPanel({
         </div>
 
         {/* Toggle Avanzado */}
-        <div className="mt-3 flex justify-center">
+        <div className="mt-1 flex justify-center">
           <Button 
             variant="ghost" 
             size="sm" 
@@ -693,8 +693,8 @@ const FilterPanel = memo(function FilterPanel({
         {/* === FILTROS AVANZADOS === */}
         {showAdvanced && (
           <div className="animate-in fade-in slide-in-from-top-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-5 mt-3 pt-4 border-t border-[var(--border-default)]">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3 mt-1 pt-2 border-t border-[var(--border-default)]">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Velocidad de generación en tokens por segundo (basado en benchmarks)"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100} step={5} value={[draft.minSpeed]} onValueChange={([val]) => update({ minSpeed: val })} className="flex-1" />
@@ -702,7 +702,7 @@ const FilterPanel = memo(function FilterPanel({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Número mínimo de batallas evaluadas en Chatbot Arena"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100000} step={1000} value={[draft.minEloVotes]} onValueChange={([val]) => update({ minEloVotes: val })} className="flex-1" />
@@ -710,7 +710,7 @@ const FilterPanel = memo(function FilterPanel({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Margen de error del puntaje Elo (menor = más confiable)"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={3} max={30} step={1} value={[draft.maxEloCi]} onValueChange={([val]) => update({ maxEloCi: val })} className="flex-1" />
@@ -718,7 +718,7 @@ const FilterPanel = memo(function FilterPanel({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).">
                   <span>ZeroEval mín. <span className="cursor-help opacity-50">(?)</span></span>
                 </label>
@@ -728,7 +728,7 @@ const FilterPanel = memo(function FilterPanel({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.">
                   <span>Hardware (VRAM) <span className="cursor-help opacity-50">(?)</span></span>
                 </label>
@@ -747,7 +747,7 @@ const FilterPanel = memo(function FilterPanel({
                 </select>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
                   <span>BenchLM mín.</span>
                 </label>
@@ -757,7 +757,7 @@ const FilterPanel = memo(function FilterPanel({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
                   <span>Arquitectura</span>
                 </label>
