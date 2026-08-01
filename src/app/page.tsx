@@ -23,11 +23,11 @@ export default function Home() {
   const activeView = useDashboardStore((s) => s.activeView);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--bg-base)]">
+    <div className="h-screen flex flex-col bg-[var(--bg-base)] overflow-hidden">
       <Header />
       <div className="flex flex-1 flex-col lg:flex-row min-h-0">
         <Sidebar />
-        <main className="flex-1 min-w-0 overflow-x-hidden">
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
           <div className={cn("mx-auto px-4 lg:px-6 py-5 lg:py-6 transition-all duration-300", activeView === "tabla" ? "max-w-full" : "max-w-[1400px]")}>
             {activeView === "overview" && <OverviewView />}
             {activeView === "recomendador" && <RecomendadorView />}

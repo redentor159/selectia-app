@@ -130,10 +130,11 @@ export function Sidebar() {
   return (
     <TooltipProvider delayDuration={200}>
       <nav className={cn(
-        "flex lg:flex-col items-center lg:items-stretch gap-1 p-2 lg:p-3 shrink-0 lg:border-r border-[var(--border-default)] lg:bg-[var(--bg-elevated)] overflow-x-auto lg:overflow-y-auto lg:overflow-x-visible transition-all duration-300",
+        "flex lg:flex-col items-center lg:items-stretch gap-1 p-2 lg:p-3 shrink-0 lg:border-r border-[var(--border-default)] lg:bg-[var(--bg-elevated)] overflow-x-auto lg:overflow-visible transition-all duration-300 flex-nowrap",
         isSidebarCollapsed ? "lg:w-[68px]" : "lg:w-[240px]"
       )}>
-        {NAV_SECTIONS.map((section, sIdx) => (
+                <div className="flex lg:flex-col items-center lg:items-stretch gap-1 flex-1 overflow-x-auto lg:overflow-y-auto lg:overflow-x-hidden w-full lg:pr-1 custom-scrollbar">
+          {NAV_SECTIONS.map((section, sIdx) => (
           <div key={section.label} className="flex lg:flex-col items-center lg:items-stretch gap-1">
             {/* Section separator on desktop, spacer on mobile */}
             {sIdx > 0 && (
@@ -185,6 +186,8 @@ export function Sidebar() {
             })}
           </div>
         ))}
+
+        </div>
 
         {/* Help / Glossary / Engine modals — always visible (mobile + desktop)
             Per user request: glossary + engine explanation must ALWAYS be accessible. */}
