@@ -3,10 +3,9 @@
 import { useMemo, useState } from "react";
 import { useEffectiveDashboardData } from "@/hooks/use-effective-dashboard-data";
 import { useDashboardStore, PROFILES } from "@/store/dashboard-store";
-import { getCurrencyByCode, formatPrice, getIntelligenceColor, getEloColor, formatVotes } from "@/lib/format";
+import { getCurrencyByCode, formatPrice, getEloColor, formatVotes } from "@/lib/format";
 import { computeBlendedUsd } from "@/lib/format";
 import { ProviderLogo } from "../provider-logo";
-import { LicenseBadge } from "../model-badges";
 import {
   Sparkles,
   Search,
@@ -19,6 +18,9 @@ import {
   Database,
   Clock,
   ArrowUpRight,
+  Activity,
+  ExternalLink,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +53,7 @@ import { OperarioView } from "./operario-view";
 import { CalculadoraView } from "./calculadora-view";
 import { SaludView } from "./salud-view";
 import { GerenteView } from "./gerente-view";
-import { AnalyticsView } from "./analytics-view";
+import { AnalyticsView, ScatterProviderLegend } from "./analytics-view";
 
 const EXAMPLE_QUERIES = [
   "Redactar correo a cliente sobre demora en entrega",
@@ -191,6 +193,72 @@ function IngenieroOverview() {
       }));
   }, [data]);
 
+  // Provider filter state shared by both Overview scatters (Inteligencia vs
+  // Precio & Adopción vs Calidad). Mirrors the pattern in analytics-view.tsx:116-156.
+  const [activeProviders, setActiveProviders] = useState<string[]>([]);
+  const toggleProvider = (provider: string) => {
+    if (provider === "ALL") {
+      setActiveProviders([]);
+      return;
+    }
+    setActiveProviders((prev) =>
+      prev.includes(provider)
+        ? prev.filter((p) => p !== provider)
+        : [...prev, provider]
+    );
+  };
+  const getPointOpacity = (provider: string) => {
+    if (activeProviders.length === 0) return 0.65;
+    return activeProviders.includes(provider) ? 0.9 : 0.1;
+  };
+
+  // Provider × color pairs derived from the models actually present in each
+  // scatter (a superset is fine for the legend — duplicates are deduped inside
+  // ScatterProviderLegend by provider name). We use scatterData here because it
+  // already carries provider + color for every point drawn on the first chart;
+  // the Adopción legend gets its own derivation below from adoptionData.
+  const allProvidersData = useMemo(() => {
+    return scatterData.map((d) => ({ provider: d.provider, color: d.color }));
+  }, [scatterData]);
+  const adoptionProvidersData = useMemo(() => {
+    return adoptionData.map((d) => ({ provider: d.provider, color: d.color }));
+  }, [adoptionData]);
+
+  // Modelos por Modalidad — counts how many models support each input modality
+  // (text/image/file/video/audio) using m.orInputModalities. Stable color per
+  // modality; order matches the documented tier list.
+  const modalitiesData = useMemo(() => {
+    if (!data) return [];
+    const counts: Record<string, number> = {};
+    for (const m of data.models) {
+      if (m.orInputModalities && Array.isArray(m.orInputModalities)) {
+        for (const mod of m.orInputModalities) {
+          counts[mod] = (counts[mod] || 0) + 1;
+        }
+      }
+    }
+    const order = ["text", "image", "file", "video", "audio"];
+    const palette: Record<string, string> = {
+      text: "var(--brand-primary)",
+      image: "var(--color-indigo)",
+      file: "var(--color-warning)",
+      video: "var(--color-orange)",
+      audio: "var(--color-success)",
+    };
+    return order
+      .filter((mod) => counts[mod])
+      .map((mod) => ({
+        name: mod.charAt(0).toUpperCase() + mod.slice(1),
+        value: counts[mod],
+        color: palette[mod] ?? "var(--brand-primary)",
+      }));
+  }, [data]);
+
+  const benchlmStats = useMemo(
+    () => data?.benchlmStats ?? [],
+    [data]
+  );
+
   const handleSearch = (q?: string) => {
     const finalQuery = q ?? query;
     if (!finalQuery.trim()) return;
@@ -327,15 +395,8 @@ function IngenieroOverview() {
                   Cada punto es un modelo · tamaño = velocidad · color = proveedor
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-3 text-[10px] shrink-0">
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-sm bg-[var(--color-success)]" /> Gratis
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-[var(--brand-accent)]" /> Pago
-                </span>
-              </div>
             </div>
+            <ScatterProviderLegend data={allProvidersData} activeProviders={activeProviders} onToggle={toggleProvider} />
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={320} debounce={50}>
@@ -398,10 +459,13 @@ function IngenieroOverview() {
                   {scatterData.map((entry, i) => (
                     <Cell
                       key={i}
-                      fill={entry.free ? "var(--color-success)" : entry.color}
-                      fillOpacity={0.7}
-                      stroke={entry.free ? "var(--color-success)" : entry.color}
+                      fill={entry.color}
+                      fillOpacity={getPointOpacity(entry.provider)}
+                      stroke={entry.color}
+                      strokeOpacity={getPointOpacity(entry.provider)}
                       strokeWidth={1}
+                      onClick={() => toggleProvider(entry.provider)}
+                      style={{ cursor: "pointer" }}
                     />
                   ))}
                 </Scatter>
@@ -477,22 +541,94 @@ function IngenieroOverview() {
         </Card>
       </section>
 
-      {/* Cheapest + fastest quick row */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <QuickModelCard
-          title="Más económico con pago"
-          icon={DollarSign}
-          color="var(--color-success)"
-          model={kpis!.cheapest}
-          currencyMeta={currencyMeta}
-        />
-        <QuickModelCard
-          title="Más rápido en inferencia"
-          icon={Zap}
-          color="var(--color-warning)"
-          model={kpis!.fastest}
-          currencyMeta={currencyMeta}
-        />
+      {/* Quick stats (1/3) + Modelos por Modalidad (2/3) */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left column (1/3): Quick stats stacked vertically */}
+        <div className="flex flex-col gap-4">
+          <QuickModelCard
+            title="Más económico con pago"
+            icon={DollarSign}
+            color="var(--color-success)"
+            model={kpis!.cheapest}
+            currencyMeta={currencyMeta}
+          />
+          <QuickModelCard
+            title="Más rápido en inferencia"
+            icon={Zap}
+            color="var(--color-warning)"
+            model={kpis!.fastest}
+            currencyMeta={currencyMeta}
+          />
+        </div>
+
+        {/* Right column (2/3): Modalidades chart */}
+        {modalitiesData.length > 0 && (
+          <div className="lg:col-span-2 flex flex-col h-full">
+            <Card className="bg-[var(--bg-surface)] border-[var(--border-default)] flex-1 flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-[var(--color-indigo)]" />
+                  Modelos por Modalidad
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Capacidades de input soportadas a través de {data.models.filter(m => (m.orInputModalities?.length ?? 0) > 0).length} modelos (OpenRouter)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col justify-center min-h-[220px]">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                  <BarChart
+                    data={modalitiesData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 32, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--border-default)" }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--border-default)" }}
+                      width={60}
+                    />
+                    <RechartsTooltip
+                      cursor={{ fill: "var(--bg-overlay)" }}
+                      isAnimationActive={false}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as { name: string; value: number };
+                        return (
+                          <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs">
+                            <div className="font-semibold text-[var(--text-primary)]">{d.name}</div>
+                            <div className="text-[var(--text-secondary)] mt-0.5">
+                              <span className="num text-[var(--text-primary)]">{d.value}</span> modelos
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[0, 3, 3, 0]} barSize={20} isAnimationActive={false}>
+                      {modalitiesData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                      <LabelList
+                        dataKey="value"
+                        position="right"
+                        style={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                        className="num"
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </section>
 
       {/* Gráfico 7: Adopción vs Calidad — scatter downloads (log) vs Intelligence Index */}
@@ -506,10 +642,11 @@ function IngenieroOverview() {
                     Adopción vs Calidad
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Downloads HuggingFace (log) vs Intelligence Index · "Zona de Confianza" = alta calidad + alta adopción
+                    Descargas de HuggingFace vs Intelligence Index · Los modelos arriba a la derecha ("Zona de Confianza") son populares y muy inteligentes. El eje de adopción crece multiplicando (1K, 10K, 100K).
                   </CardDescription>
                 </div>
               </div>
+              <ScatterProviderLegend data={adoptionProvidersData} activeProviders={activeProviders} onToggle={toggleProvider} />
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300} debounce={50}>
@@ -562,13 +699,55 @@ function IngenieroOverview() {
                   />
                   <Scatter data={adoptionData} isAnimationActive={false}>
                     {adoptionData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} fillOpacity={0.65} stroke={entry.color} strokeWidth={1} />
+                      <Cell
+                        key={i}
+                        fill={entry.color}
+                        fillOpacity={getPointOpacity(entry.provider)}
+                        stroke={entry.color}
+                        strokeOpacity={getPointOpacity(entry.provider)}
+                        strokeWidth={1}
+                        onClick={() => toggleProvider(entry.provider)}
+                        style={{ cursor: "pointer" }}
+                      />
                     ))}
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
+        </section>
+      )}
+
+      {/* BenchLM Stats Panel (Titulares del Mercado) — sin Card, variante FINAL.
+          Debajo de Adopción vs Calidad, antes de Data freshness (C1, CODIGO_LISTO_PARA_PEGAR.md:489-521). */}
+      {benchlmStats.length > 0 && (
+        <section className="flex flex-col gap-3 mt-4 mb-4">
+          <h2 className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1.5 px-1">
+            <Activity className="h-4 w-4" />
+            Titulares del Mercado (BenchLM Stats)
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {benchlmStats.map(stat => (
+              <a
+                key={stat.statId}
+                href={stat.anchorUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative flex flex-col justify-between rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 hover:border-[var(--brand-primary-subtle)] hover:bg-[var(--bg-elevated)] transition-colors"
+              >
+                <div className="text-xs font-medium text-[var(--text-secondary)] mb-2 line-clamp-1 pr-4">
+                  {stat.label}
+                </div>
+                <div className="text-lg font-semibold text-[var(--text-primary)] mb-1 leading-tight">
+                  {stat.value}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                  {stat.sentence}
+                </div>
+                <ExternalLink className="absolute top-4 right-4 h-3 w-3 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ))}
+          </div>
         </section>
       )}
 
@@ -687,7 +866,7 @@ function QuickModelCard({
               {model.speedTps} tok/s
             </span>
           )}
-          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -714,8 +893,6 @@ function ComprasOverview() {
   // Compras profile, we still show the Calculadora for consistency.
   return <CalculadoraView />;
 }
-
-
 
 function SystemOverview() {
   // Perfil D (TI) — the Salud view IS the system overview. Delegate to it.
