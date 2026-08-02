@@ -44,17 +44,14 @@ import {
   Bar,
   Cell,
   LabelList,
-  LineChart,
-  Line,
-  Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
 import type { AIModel, CurrencyRate } from "@/lib/types";
 import { OperarioView } from "./operario-view";
 import { CalculadoraView } from "./calculadora-view";
-import { ConsultorView } from "./consultor-view";
 import { SaludView } from "./salud-view";
 import { GerenteView } from "./gerente-view";
+import { AnalyticsView } from "./analytics-view";
 
 const EXAMPLE_QUERIES = [
   "Redactar correo a cliente sobre demora en entrega",
@@ -84,7 +81,11 @@ export function OverviewView() {
   // implementation. The default "search-cards" (Ingeniero) renders inline below.
   if (layout === "big-cards") return <OperarioOverview />;
   if (layout === "budget") return <ComprasOverview />;
-  if (layout === "pivot-legal") return <ConsultorOverview />;
+  // Perfil C (Consultor): no tiene Resumen propio, el transcript documentó que
+  // se redirige al Heatmap de Analytics (Pasos 4301-4304). Se renderiza
+  // AnalyticsView directamente, sin salto de frame: el usuario percibe la
+  // vista de Analytics al instante, sin pantalla en blanco ni parpadeo.
+  if (layout === "pivot-legal") return <AnalyticsView />;
   if (layout === "system") return <SystemOverview />;
   if (layout === "kpis-charts") return <GerenteOverview />;
   // "search-cards" (A Ingeniero) renders inline below.
@@ -571,189 +572,6 @@ function IngenieroOverview() {
         </section>
       )}
 
-      {/* Gráfico 8: Evolución de Precios de LLMs — BenchLM Token Price Index
-          41 meses (marzo 2023 → julio 2026), base 2023-03 = 100.
-          3 tiers: frontier (modelos top), mid (calidad media), budget (económicos). */}
-      {data.priceIndex && data.priceIndex.length > 0 && (
-        <section className="grid grid-cols-1 gap-4">
-          <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
-                    <TrendingUp className="h-4 w-4 text-[var(--brand-primary)]" />
-                    Evolución de Precios de LLMs (BenchLM Token Price Index)
-                    <span
-                      className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold cursor-help"
-                      style={{ backgroundColor: "var(--bg-overlay)", color: "var(--text-secondary)" }}
-                      title="Frontier = modelos top-tier más caros (GPT-5.5, Claude Opus) · Mid = gama media (Claude Sonnet, Gemini Pro) · Budget = económicos (<$1/M). El índice base es marzo 2023 = 100. Frontier ha caído 88%."
-                    >
-                      i
-                    </span>
-                  </CardTitle>
-                  <CardDescription className="text-xs mt-1">
-                    Índice base marzo 2023 = 100 · {data.priceIndex.length} meses ·{" "}
-                    <span title="Modelos top-tier más caros y capaces (GPT-5.5, Claude Opus). Han caído 88% desde marzo 2023." className="cursor-help underline decoration-dotted">frontier</span>{" / "}
-                    <span title="Modelos de gama media, balance precio-calidad (Claude Sonnet, Gemini Pro)." className="cursor-help underline decoration-dotted">mid</span>{" / "}
-                    <span title="Modelos económicos (<$1/M tokens). Precios estables." className="cursor-help underline decoration-dotted">budget</span>
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-            <ResponsiveContainer width="100%" height={300} debounce={50}>
-              <LineChart
-                data={data.priceIndex}
-                margin={{ top: 8, right: 24, bottom: 16, left: 4 }}
-              >
-                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--border)" }}
-                  minTickGap={20}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--border)" }}
-                  width={45}
-                  label={{
-                    value: "Índice (base 100)",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 0,
-                    fill: "var(--text-secondary)",
-                    fontSize: 10,
-                  }}
-                />
-                <RechartsTooltip
-                  isAnimationActive={false}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload as {
-                      month: string;
-                      frontier: number | null;
-                      frontierMedian: number | null;
-                      mid: number | null;
-                      midMedian: number | null;
-                      budget: number | null;
-                      budgetMedian: number | null;
-                    };
-                    if (!d) return null;
-                    return (
-                      <div className="rounded-lg border bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[260px]" style={{ borderColor: "var(--border)" }}>
-                        <div className="font-semibold text-[var(--text-primary)] mb-1.5">
-                          {label}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="frontier" title="Tier frontier" style={{ backgroundColor: "var(--color-error)" }} />
-                              Frontier
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.frontier != null ? d.frontier.toFixed(1) : "—"}
-                              {d.frontierMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.frontierMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="mid" title="Tier mid" style={{ backgroundColor: "var(--color-warning)" }} />
-                              Mid
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.mid != null ? d.mid.toFixed(1) : "—"}
-                              {d.midMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.midMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="budget" title="Tier budget" style={{ backgroundColor: "var(--color-success)" }} />
-                              Budget
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.budget != null ? d.budget.toFixed(1) : "—"}
-                              {d.budgetMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.budgetMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
-                  iconType="circle"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="frontier"
-                  name="Frontier"
-                  stroke="var(--color-error)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="mid"
-                  name="Mid"
-                  stroke="var(--color-warning)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="budget"
-                  name="Budget"
-                  stroke="var(--color-success)"
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            <div className="mt-2 text-[10px] text-[var(--text-secondary)]">
-              Fuente:{" "}
-              <a
-                href="https://benchlm.ai/stats/llm-pricing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[var(--brand-primary)] hover:underline"
-              >
-                BenchLM Token Price Index — base marzo 2023 = 100
-              </a>
-              {" · "}Mediana blended = precio promedio del tier (USD por 1M tokens, input+output combinados).
-            </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
       {/* Data freshness */}
       <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
         <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
@@ -869,8 +687,7 @@ function QuickModelCard({
               {model.speedTps} tok/s
             </span>
           )}
-          <LicenseBadge license={model.license} licenseName={model.licenseName} />
-        </div>
+          </div>
       </CardContent>
     </Card>
   );
@@ -898,9 +715,7 @@ function ComprasOverview() {
   return <CalculadoraView />;
 }
 
-function ConsultorOverview() {
-  return <ConsultorView />;
-}
+
 
 function SystemOverview() {
   // Perfil D (TI) — the Salud view IS the system overview. Delegate to it.

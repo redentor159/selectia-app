@@ -256,7 +256,7 @@ export function GerenteView() {
                   }}
                   width={48}
                 />
-                <ZAxis type="number" dataKey="z" range={[40, 400]} />
+                <ZAxis type="number" dataKey="z" range={[10, 80]} />
                 <RechartsTooltip
                   cursor={{ strokeDasharray: "3 3", stroke: "var(--border-strong)" }}
                   isAnimationActive={false}

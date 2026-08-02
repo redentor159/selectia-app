@@ -65,7 +65,7 @@ import {
   type BenchlmPricingItem,
   type ZeroEvalMetricItem,
 } from "./validations";
-import { MODELS, CURRENCIES, SOURCES, DASHBOARD_DATA } from "./data/models";
+import { CURRENCIES, DASHBOARD_DATA } from "./data/models";
 
 // ----------------------------------------------------------------
 // Configuration
@@ -2237,10 +2237,8 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     hfHub.enrichment
   );
 
-  // Fallback: if AA returned no models (red), use seed MODELS so the UI
-  // always has something to render
   if (models.length === 0) {
-    models = MODELS;
+    throw new Error("API Returned zero models. Fetch failed.");
   }
 
   // Apply BenchLM + ZeroEval enrichment (mutates each model in place).

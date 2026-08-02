@@ -44,7 +44,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatMs } from "@/lib/format";
-import { exportToPDF } from "./consultor-view";
+import { exportToPDF } from "@/lib/pdf-export";
 
 export function ComparadorView() {
   const { data, isLoading } = useEffectiveDashboardData();

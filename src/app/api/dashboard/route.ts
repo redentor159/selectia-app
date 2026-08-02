@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { fetchDashboardData, forceRefreshDashboardData } from "@/lib/orchestrator";
-import { DASHBOARD_DATA } from "@/lib/data/models";
 
 export const dynamic = "force-dynamic";
 
@@ -76,8 +75,9 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error("Orchestrator failed:", error);
-    return NextResponse.json(DASHBOARD_DATA, {
-      headers: { "Cache-Control": "public, s-maxage=300" },
-    });
+    return NextResponse.json(
+      { error: "Orchestrator API failure", message: (error as Error).message },
+      { status: 500 }
+    );
   }
 }

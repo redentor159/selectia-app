@@ -588,3 +588,13 @@
 .hide-col-hfHealth .col-hfHealth { display: none !important; }
 .hide-col-hfDownloads .col-hfDownloads { display: none !important; }
 .hide-col-hfLikes .col-hfLikes { display: none !important; }
+
+/* Column Visibility Toggles for Analytics Heatmap */
+.hide-col-priceAvg th.col-priceAvg, .hide-col-priceAvg td.col-priceAvg { display: none !important; }
+.hide-col-iiAvg th.col-iiAvg, .hide-col-iiAvg td.col-iiAvg { display: none !important; }
+.hide-col-count th.col-count, .hide-col-count td.col-count { display: none !important; }
+.hide-col-commercialPct th.col-commercialPct, .hide-col-commercialPct td.col-commercialPct { display: none !important; }
+.hide-col-freePct th.col-freePct, .hide-col-freePct td.col-freePct { display: none !important; }
+.hide-col-speedAvg th.col-speedAvg, .hide-col-speedAvg td.col-speedAvg { display: none !important; }
+.hide-col-dlAvg th.col-dlAvg, .hide-col-dlAvg td.col-dlAvg { display: none !important; }
+.hide-col-likesAvg th.col-likesAvg, .hide-col-likesAvg td.col-likesAvg { display: none !important; }

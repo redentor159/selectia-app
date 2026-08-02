@@ -235,6 +235,9 @@ export const useDashboardStore = create<DashboardState>()(
         if (p === "F") {
           next.activeView = "calculadora";
         }
+        if (p === "C") {
+          next.activeView = "analytics";
+        }
         if (meta && !meta.showCurrencySelector) {
           next.currency = "PEN";
         }
