@@ -329,10 +329,19 @@ export function AnalyticsView() {
         }
       }
 
+      const launchedThisPeriod = new Set<string>();
+      for (const m of group.models) {
+        launchedThisPeriod.add(m.provider);
+      }
+
       const row: Record<string, any> = { quarter };
       for (const [provider, max] of cumulativeMax.entries()) {
-        row[provider] = max.ii;
-        row[`${provider}_model`] = max.name;
+        // Solo emitir punto si el proveedor lanzó un modelo en ESTE período.
+        // Sin datos del proveedor en esta fecha, no hay punto (hueco en la línea).
+        if (launchedThisPeriod.has(provider)) {
+          row[provider] = max.ii;
+          row[`${provider}_model`] = max.name;
+        }
       }
       result.push(row);
     }
@@ -745,7 +754,6 @@ export function AnalyticsView() {
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   activeDot={{ r: 5 }}
-                  connectNulls
                 />
               ))}
             </LineChart>

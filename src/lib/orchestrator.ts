@@ -1561,7 +1561,14 @@ function applyOpenRouterEnrichment(
       const openWeights = license === "open-source-full" || license === "conditional";
       const inputPrice = toUsdPerMillion(or.pricing?.prompt);
       const outputPrice = toUsdPerMillion(or.pricing?.completion);
-      const releaseDate = or.created ? new Date(or.created).toISOString() : null;
+      // or.created viene en SEGUNDOS (Unix epoch) — new Date() espera ms.
+      // Si el valor < 1e12 es segundos: multiplicar por 1000.
+      const createdMs = or.created
+        ? or.created < 1e12
+          ? or.created * 1000
+          : or.created
+        : null;
+      const releaseDate = createdMs ? new Date(createdMs).toISOString() : null;
 
       const newModel: AIModel = {
         id: `orupsert-${or.id}`,
