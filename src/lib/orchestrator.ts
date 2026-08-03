@@ -83,6 +83,12 @@ import { CURRENCIES, DASHBOARD_DATA } from "./data/models";
 const AA_API_KEY_FALLBACK = "aa_FSNEylzoSXyQhtxgyrsXHaEntZMPboOT";
 const AA_API_KEY = process.env.AA_API_KEY || AA_API_KEY_FALLBACK;
 
+// Flag para habilitar el upsert de modelos OpenRouter que no existen en AA.
+// Solo activo cuando ENABLE_OR_UPSERT=true. Default: off (catálogo solo de AA).
+// Los modelos upsertados requieren benchmarks.artificial_analysis.intelligence_index
+// (es el mismo II de AA, copia legítima — misma escala, sin mezcla).
+const ENABLE_OR_UPSERT = process.env.ENABLE_OR_UPSERT === "true";
+
 // HuggingFace token — same pattern as AA: env var for prod, hardcoded fallback for dev.
 // Free tier: rate-limited per IP. Get yours at https://huggingface.co/settings/tokens
 const HF_TOKEN_FALLBACK = process.env.HF_TOKEN || "TU_TOKEN_REAL_AQUI";
@@ -1393,16 +1399,21 @@ async function fetchOpenRouter(): Promise<OpenRouterEnrichmentData> {
 function applyOpenRouterEnrichment(
   models: AIModel[],
   openrouter: { modelsMap: Map<string, ORModel> }
-): { matched: number; priceFallbacks: number; hfIdFallbacks: number } {
+): { matched: number; priceFallbacks: number; hfIdFallbacks: number; upserted: number } {
   let matched = 0;
   let priceFallbacks = 0;
   let hfIdFallbacks = 0;
+  let upserted = 0;
 
   const toUsdPerMillion = (raw: string | null | undefined): number | null => {
     if (raw == null) return null;
     const n = parseFloat(raw);
     return isNaN(n) ? null : n * 1_000_000;
   };
+
+  // Set de OR ids ya reclamados por match con modelos AA existentes.
+  // Se usa para identificar los OR "huérfanos" candidatos a upsert.
+  const claimedOrIds = new Set<string>();
 
   for (const m of models) {
     const key = normalizeForMatching(m.name);
@@ -1421,6 +1432,7 @@ function applyOpenRouterEnrichment(
 
     if (!or) continue;
     matched++;
+    if (or.id) claimedOrIds.add(or.id);
 
     // --- Identity fields ---
     m.orModelId = or.id ?? null;
@@ -1505,7 +1517,93 @@ function applyOpenRouterEnrichment(
     }
   }
 
-  return { matched, priceFallbacks, hfIdFallbacks };
+  // ============================================================
+  // Upsert de modelos OR huérfanos (no existen en AA pero sí en OR).
+  // Solo se agregan los que ya tienen benchmarks.artificial_analysis.intelligence_index
+  // (es el II de AA, copia legítima — misma escala). Los sin II se ignoran.
+  // Filtros: alias_target != null, variantes de esfuerzo (high)/(low)/(max),
+  // (xhigh)/(minimal)/(medium), II == null, duplicado fuzzy contra models.
+  // Dedup por or.id (OR indexa el mismo modelo 3 veces en modelsMap).
+  // ============================================================
+  if (ENABLE_OR_UPSERT) {
+    const EFFORT_RE = /\((high|low|max|xhigh|minimal|medium)\)/i;
+    const seenUpsertIds = new Set<string>(); // dedup por or.id (3 claves → 1 instancia)
+
+    for (const or of openrouter.modelsMap.values()) {
+      // Dedup: el mismo ORModel aparece bajo 3 claves (slug, id, canonical_slug)
+      if (or.id && seenUpsertIds.has(or.id)) continue;
+      if (or.id) seenUpsertIds.add(or.id);
+
+      // Filtro 1: ya fue reclamado por un modelo AA existente
+      if (or.id && claimedOrIds.has(or.id)) continue;
+
+      // Filtro 2: es alias → descartar (el real se agrega por separado si aplica)
+      if (or.alias_target != null) continue;
+
+      // Filtro 3: variante de esfuerzo (high)/(low)/(max)/(xhigh)/(minimal)/(medium)
+      if (EFFORT_RE.test(or.name)) continue;
+
+      // Filtro 4 (GATE): sin II de AA → no se agrega (regla acordada con el usuario)
+      const aa = or.benchmarks?.artificial_analysis;
+      const ii = aa?.intelligence_index ?? null;
+      if (ii == null) continue;
+
+      // Filtro 5: defensa en profundidad — fuzzy match contra los modelos ya existentes
+      // (cubrir el caso donde el match bidireccional de applyOpenRouterEnrichment falló
+      //  por margen de chars pero namesMatch sí los considera equivalentes)
+      if (models.some(m => namesMatch(m.name, or.name))) continue;
+
+      // Construcción del AIModel (replica el patrón de fetchArtificialAnalysis:562-621)
+      const creator = or.id.split('/')[0] ?? undefined;
+      const { provider, family, domain, color } = inferProvider(or.name, creator);
+      const { license, licenseName } = inferLicense(or.name, provider);
+      const params = inferParameters(or.name);
+      const openWeights = license === "open-source-full" || license === "conditional";
+      const inputPrice = toUsdPerMillion(or.pricing?.prompt);
+      const outputPrice = toUsdPerMillion(or.pricing?.completion);
+      const releaseDate = or.created ? new Date(or.created).toISOString() : null;
+
+      const newModel: AIModel = {
+        id: `orupsert-${or.id}`,
+        name: or.name,
+        provider,
+        providerDomain: domain,
+        providerColor: color,
+        family,
+        license,
+        licenseName,
+        priceInputUsd: inputPrice,
+        priceOutputUsd: outputPrice,
+        priceCacheHitUsd: toUsdPerMillion(or.pricing?.input_cache_read),
+        priceCacheWriteUsd: toUsdPerMillion(or.pricing?.input_cache_write),
+        contextWindow: or.context_length ?? or.top_provider?.context_length ?? 8192,
+        maxOutput: or.top_provider?.max_completion_tokens ?? 4096,
+        intelligenceIndex: ii,
+        codingIndex: aa?.coding_index ?? null,
+        agenticIndex: aa?.agentic_index ?? null,
+        speedTps: null,           // OR no trae TPS — motor imputa baseline 50
+        ttftMs: null,             // OR no trae TTFT
+        elo: null,                // se enriquece en próximos refresh vía Arena
+        eloCi: null,
+        eloVotes: null,
+        capabilities: inferCapabilities(or.name),
+        knowledgeCutoff: or.knowledge_cutoff ?? (releaseDate ? inferKnowledgeCutoff(releaseDate, or.name) : null),
+        releaseDate,
+        parameters: params,
+        isMoE: inferMoE(or.name),
+        freeAccess: inferFreeAccess(provider, openWeights, (inputPrice ?? 0) > 0),
+        inferenceProviders: [{ name: provider, cheapest: true }],
+        openWeights,
+        ollamaAvailable: openWeights,
+        active: or.expiration_date ? false : true,
+      };
+
+      models.push(newModel);
+      upserted++;
+    }
+  }
+
+  return { matched, priceFallbacks, hfIdFallbacks, upserted };
 }
 
 // --- 18. Models.dev provider catalog (gap #4 — 19th data source) -
@@ -2253,7 +2351,7 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
 
   // Apply OpenRouter enrichment (mutates models in place: pricing fallbacks, modalities, reasoning, benchmarks).
   const orStats = applyOpenRouterEnrichment(models, { modelsMap: openrouter.modelsMap });
-  console.log(`[OpenRouter] ${orStats.matched}/${models.length} matched · ${orStats.priceFallbacks} price fallbacks · ${orStats.hfIdFallbacks} HF ID fallbacks`);
+  console.log(`[OpenRouter] ${orStats.matched}/${models.length} matched · ${orStats.priceFallbacks} price fallbacks · ${orStats.hfIdFallbacks} HF ID fallbacks · ${orStats.upserted} upserted`);
 
   const sources: SourceHealth[] = [
     aa.health,
