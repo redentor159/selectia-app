@@ -39,14 +39,27 @@ export function ScatterProviderLegend({
   activeProviders,
   onToggle,
 }: {
-  data: { provider: string; color: string }[];
+  data: { provider: string; color: string; z?: number | null }[];
   activeProviders: string[];
   onToggle: (p: string) => void;
 }) {
   if (!data || data.length === 0) return null;
+
+  // Calcular el Intelligence Index máximo por proveedor para orden dinámico
+  const maxIIByProvider = new Map<string, number>();
+  for (const d of data) {
+    const curr = maxIIByProvider.get(d.provider) ?? 0;
+    const val = d.z ?? 0;
+    if (val > curr) maxIIByProvider.set(d.provider, val);
+  }
+
   const uniqueProviders = Array.from(
     new Map(data.map((d) => [d.provider, d.color])).entries()
-  ).sort((a, b) => a[0].localeCompare(b[0]));
+  ).sort((a, b) => {
+    const iiA = maxIIByProvider.get(a[0]) ?? 0;
+    const iiB = maxIIByProvider.get(b[0]) ?? 0;
+    return iiB - iiA; // orden descendente: mayor Intelligence Index primero
+  });
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 text-[10px] text-[var(--text-secondary)] px-1">
@@ -446,8 +459,9 @@ export function AnalyticsView() {
         provider,
         open: models.filter((m) => m.openWeights).length,
         closed: models.filter((m) => !m.openWeights).length,
+        maxII: Math.max(0, ...models.map((m) => m.intelligenceIndex ?? 0)),
       }))
-      .sort((a, b) => a.provider.localeCompare(b.provider));
+      .sort((a, b) => b.maxII - a.maxII); // mayor Intelligence Index primero
   }, [data]);
 
   const licenseData = useMemo(() => {
@@ -471,9 +485,13 @@ export function AnalyticsView() {
           const count = models.filter((model) => model.license === lt).length;
           row[lt] = (count / models.length) * 100;
         }
+        row.maxII = Math.max(0, ...models.map((m) => m.intelligenceIndex ?? 0));
         return row;
       })
-      .sort((a, b) => (a.provider as string).localeCompare(b.provider as string));
+      .sort(
+        (a, b) =>
+          (b.maxII as number) - (a.maxII as number) // mayor Intelligence Index primero
+      );
   }, [data]);
 
   if (isLoading || !data) {
@@ -754,6 +772,10 @@ export function AnalyticsView() {
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   activeDot={{ r: 5 }}
+                  // connectNulls une los periodos donde un proveedor no lanzo
+                  // modelo pero ya existia: la linea sube escalonadamente con el
+                  // maximo acumulado y se mantiene continua (NO cortada).
+                  connectNulls
                 />
               ))}
             </LineChart>
