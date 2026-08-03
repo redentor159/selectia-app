@@ -1603,6 +1603,40 @@ function applyOpenRouterEnrichment(
         openWeights,
         ollamaAvailable: openWeights,
         active: or.expiration_date ? false : true,
+
+        // --- Campos or* para la sección "OpenRouter — Catálogo y Capacidades" ---
+        // Replica el mapeo de applyOpenRouterEnrichment (1438-1517) para que la
+        // ficha técnica muestre la sección OR completa también en estos modelos
+        // huérfanos. Todos los valores vienen del mismo ORModel `or` (ya en scope).
+        orModelId: or.id ?? null,
+        orCanonicalSlug: or.canonical_slug ?? null,
+        orName: or.name ?? null,
+        orDescription: or.description ?? null,
+        orCreatedAt: or.created ?? null,
+        orIsAlias: null, // siempre null: el filtro 2 arriba ya descartó alias_target
+        orAliasTargetSlug: null, // siempre null: los alias se descartan en el filtro 2
+        orContextLength: or.context_length ?? or.top_provider?.context_length ?? null,
+        orMaxCompletion: or.top_provider?.max_completion_tokens ?? null,
+        orIsModerated: or.top_provider?.is_moderated ?? null,
+        orInputPrice: inputPrice,
+        orOutputPrice: outputPrice,
+        orCacheReadPrice: toUsdPerMillion(or.pricing?.input_cache_read),
+        orCacheWritePrice: toUsdPerMillion(or.pricing?.input_cache_write),
+        orWebSearchPrice: or.pricing?.web_search ? parseFloat(or.pricing.web_search) : null,
+        orHuggingFaceId: or.hugging_face_id ?? null,
+        orKnowledgeCutoff: or.knowledge_cutoff ?? null,
+        orExpirationDate: or.expiration_date ?? null,
+        orInputModalities: or.architecture?.input_modalities ?? null,
+        orOutputModalities: or.architecture?.output_modalities ?? null,
+        orTokenizer: or.architecture?.tokenizer ?? null,
+        orInstructType: or.architecture?.instruct_type ?? null,
+        orSupportedParameters: or.supported_parameters ?? null,
+        orReasoningMandatory: or.reasoning?.mandatory ?? null,
+        orReasoningDefaultEnabled: or.reasoning?.default_enabled ?? null,
+        orReasoningEfforts: or.reasoning?.supported_efforts ?? null,
+        orBenchmarksAaIntelligence: aa?.intelligence_index ?? null,
+        orBenchmarksAaCoding: aa?.coding_index ?? null,
+        orBenchmarksAaAgentic: aa?.agentic_index ?? null,
       };
 
       models.push(newModel);
