@@ -588,6 +588,7 @@ async function fetchArtificialAnalysis(
         priceCacheHitUsd: m.pricing?.price_1m_cache_hit_tokens ?? null,
         priceCacheWriteUsd: m.pricing?.price_1m_cache_write_tokens ?? null,
         contextWindow: m.context_window ?? 8192,
+        contextWindowSource: m.context_window ? "aa" : "unknown", // flag: contexto real de AA o default falso
         maxOutput: m.max_output_tokens ?? 4096,
         intelligenceIndex:
           m.evaluations?.artificial_analysis_intelligence_index ?? null,
@@ -1468,6 +1469,7 @@ function applyOpenRouterEnrichment(
     // Context fallback
     if (m.contextWindow === 8192 && m.orContextLength && m.orContextLength > 8192) {
       m.contextWindow = m.orContextLength;
+      m.contextWindowSource = "or";
     }
     // Max output fallback
     if (m.maxOutput == null && m.orMaxCompletion) {
@@ -1584,6 +1586,7 @@ function applyOpenRouterEnrichment(
         priceCacheHitUsd: toUsdPerMillion(or.pricing?.input_cache_read),
         priceCacheWriteUsd: toUsdPerMillion(or.pricing?.input_cache_write),
         contextWindow: or.context_length ?? or.top_provider?.context_length ?? 8192,
+        contextWindowSource: (or.context_length ?? or.top_provider?.context_length) ? "or" : "unknown", // flag: contexto real de OR o default falso
         maxOutput: or.top_provider?.max_completion_tokens ?? 4096,
         intelligenceIndex: ii,
         codingIndex: aa?.coding_index ?? null,
@@ -2125,6 +2128,7 @@ async function mergeModels(
       priceCacheHitUsd: null,
       priceCacheWriteUsd: null,
       contextWindow: 8192,
+      contextWindowSource: "unknown", // arena no reporta contexto
       maxOutput: 4096,
       intelligenceIndex: null,
       codingIndex: null,
@@ -2163,7 +2167,10 @@ async function mergeModels(
         if (m.priceInputUsd === null) m.priceInputUsd = val.input;
         if (m.priceOutputUsd === null) m.priceOutputUsd = val.output;
         // Llenar contexto real de LiteLLM si el modelo tiene el default 8192
-        if (m.contextWindow === 8192 && val.context > 0) m.contextWindow = val.context;
+        if (m.contextWindow === 8192 && val.context > 0) {
+          m.contextWindow = val.context;
+          m.contextWindowSource = "litellm";
+        }
         break;
       }
     }

@@ -77,6 +77,7 @@ export interface AIModel {
 
   // Context
   contextWindow: number;
+  contextWindowSource?: "aa" | "or" | "litellm" | "arena" | "unknown" | null; // Fuente real del dato de contexto: null/undefined = no auditado; "unknown" = ninguna fuente lo reportó (default 8192 falso)
   maxOutput: number;
 
   // Benchmarks (Artificial Analysis)

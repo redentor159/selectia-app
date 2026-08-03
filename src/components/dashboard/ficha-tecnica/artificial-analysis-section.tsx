@@ -50,8 +50,8 @@ export function ArtificialAnalysisSection({ model }: { model: AIModel }) {
         <CompactMetricRow
           icon={Hash}
           label="Context"
-          value={model.contextWindow >= 1000 ? `${Math.round(model.contextWindow / 1000)}K` : model.contextWindow.toString()}
-          tooltip={<><div className="font-semibold mb-1">Tokens de contexto</div>Tamaño de la ventana de contexto. Define cuánta información (historial o documentos) puede leer el modelo a la vez.</>}
+          value={model.contextWindowSource === "unknown" ? "—" : (model.contextWindow >= 1000 ? `${Math.round(model.contextWindow / 1000)}K` : model.contextWindow.toString())}
+          tooltip={model.contextWindowSource === "unknown" ? <><div className="font-semibold mb-1">Contexto no reportado</div>Ventana de contexto no reportada por las fuentes (Artificial Analysis, OpenRouter, LiteLLM). El ranking usa 8K estimado hasta que una fuente la confirme.</> : <><div className="font-semibold mb-1">Tokens de contexto</div>Tamaño de la ventana de contexto. Define cuánta información (historial o documentos) puede leer el modelo a la vez.</>}
         />
         <CompactMetricRow
           icon={ArrowRight}
