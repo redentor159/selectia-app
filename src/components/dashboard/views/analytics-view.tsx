@@ -307,13 +307,25 @@ export function AnalyticsView() {
       let sortKey = 0;
 
       if (timeRes === "week") {
-        const start = new Date(d.getFullYear(), 0, 1);
-        const days = Math.floor(
-          (d.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
-        );
-        const week = Math.ceil((d.getDay() + 1 + days) / 7);
-        period = `${d.getFullYear()}-W${week.toString().padStart(2, "0")}`;
-        sortKey = d.getFullYear() * 100 + week;
+        // Semana ISO-8601 corregida: la fórmula anterior usaba d.getDay()
+        // (0=domingo) y desalineaba el lunes. Ahora se usa getISOWeekWeek
+        // basado en el jueves (estándar ISO), garantizando que semanas 53
+        // solo aparezcan cuando el año termina en jueves/sábado.
+        const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const dayNum = (date.getUTCDay() + 6) % 7; // Lunes=0 ... Domingo=6
+        date.setUTCDate(date.getUTCDate() - dayNum + 3); // al jueves de esta semana
+        const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+        const week =
+          1 +
+          Math.round(
+            ((date.getTime() - firstThursday.getTime()) / 86400000 -
+              ((firstThursday.getUTCDay() + 6) % 7) +
+              3) /
+              7
+          );
+        const isoYear = date.getUTCFullYear();
+        period = `${isoYear}-W${week.toString().padStart(2, "0")}`;
+        sortKey = isoYear * 100 + week;
       } else if (timeRes === "month") {
         const month = (d.getMonth() + 1).toString().padStart(2, "0");
         period = `${d.getFullYear()}-${month}`;
@@ -337,14 +349,81 @@ export function AnalyticsView() {
       (a, b) => a[1].sortKey - b[1].sortKey
     );
 
+    // SERIE TEMPORAL UNIFORME: emitimos filas para TODOS los períodos del
+    // rango (incluidos los períodos sin lanzamientos), para que el gráfico
+    // muestre un punto por semana/trimestre y no se vean huecos en el eje X
+    // categórico (que comprime visualmente las semanas con lanzamiento).
+    //
+    // Generamos la lista completa de períodos y sortKeys desde el primero
+    // hasta el último con lanzamientos. Si un período está vacío, lo
+    // rellenamos con una fila sin proveedores y el acumulado de cada
+    // proveedor se repite (efecto escalón) cuando construyamos la fila abajo.
+    const allPeriods: { period: string; sortKey: number }[] = [];
+
+    const sortedGroups = [...sortedQuarters].sort(
+      (a, b) => a[1].sortKey - b[1].sortKey
+    );
+    const minSortKey = sortedGroups[0][1].sortKey;
+    const maxSortKey = sortedGroups[sortedGroups.length - 1][1].sortKey;
+
+    if (timeRes === "week") {
+      // Iterar por semanas ISO-8601 (lunes a domingo). Como el sortKey es
+      // isoYear*100 + week, no es lineal entre años para semanas 53, así
+      // que iteramos año por año y semana ISO por semana ISO.
+      const minY = Math.floor(minSortKey / 100);
+      const maxY = Math.floor(maxSortKey / 100);
+      for (let y = minY; y <= maxY; y++) {
+        // 52 o 53 semanas: cubrimos 1..53 y deduplicamos si no existe.
+        for (let w = 1; w <= 53; w++) {
+          const sk = y * 100 + w;
+          if (sk < minSortKey || sk > maxSortKey) continue;
+          allPeriods.push({ period: `${y}-W${w.toString().padStart(2, "0")}`, sortKey: sk });
+        }
+      }
+    } else if (timeRes === "month") {
+      let cur = Math.floor(minSortKey / 100) * 12 + ((minSortKey % 100) - 1);
+      const end = Math.floor(maxSortKey / 100) * 12 + ((maxSortKey % 100) - 1);
+      while (cur <= end) {
+        const y = Math.floor(cur / 12);
+        const m = cur % 12;
+        allPeriods.push({
+          period: `${y}-${(m + 1).toString().padStart(2, "0")}`,
+          sortKey: y * 100 + m,
+        });
+        cur++;
+      }
+    } else if (timeRes === "quarter") {
+      let y = Math.floor(minSortKey / 10);
+      let q = minSortKey % 10;
+      while (y * 10 + q <= maxSortKey) {
+        allPeriods.push({
+          period: `${y}-Q${q}`,
+          sortKey: y * 10 + q,
+        });
+        q++;
+        if (q > 4) { q = 1; y++; }
+      }
+    } else if (timeRes === "year") {
+      for (let y = minSortKey; y <= maxSortKey; y++) {
+        allPeriods.push({ period: String(y), sortKey: y });
+      }
+    }
+
+    // Mapa sortKey -> conjunto de modelos lanzados en ese período.
+    const launchesBySortKey = new Map<number, typeof data.models>();
+    for (const [period, group] of sortedQuarters) {
+      launchesBySortKey.set(group.sortKey, group.models);
+    }
+
     const result: Record<string, any>[] = [];
     const cumulativeMax = new Map<
       string,
       { ii: number; name: string; id: string }
     >();
 
-    for (const [quarter, group] of sortedQuarters) {
-      for (const m of group.models) {
+    for (const { period, sortKey } of allPeriods) {
+      const modelsThisPeriod = launchesBySortKey.get(sortKey) ?? [];
+      for (const m of modelsThisPeriod) {
         const current = cumulativeMax.get(m.provider);
         const currentMax = current ? current.ii : 0;
         if (m.intelligenceIndex! > currentMax) {
@@ -357,19 +436,22 @@ export function AnalyticsView() {
       }
 
       const launchedThisPeriod = new Set<string>();
-      for (const m of group.models) {
+      for (const m of modelsThisPeriod) {
         launchedThisPeriod.add(m.provider);
       }
 
-      const row: Record<string, any> = { quarter };
+      const row: Record<string, any> = { quarter: period };
       for (const [provider, max] of cumulativeMax.entries()) {
-        // Solo emitir punto si el proveedor lanzó un modelo en ESTE período.
-        // Sin datos del proveedor en esta fecha, no hay punto (hueco en la línea).
-        if (launchedThisPeriod.has(provider)) {
-          row[provider] = max.ii;
-          row[`${provider}_model`] = max.name;
-          row[`${provider}_model_id`] = max.id; // ficha técnica (WU3, 4.1b)
-        }
+        // Serie uniforme: emitir SIEMPRE el valor acumulado de cada
+        // proveedor (efecto escalón). Así cada proveedor tiene un punto
+        // por semana/trimestre desde su primer lanzamiento hasta el final,
+        // y la línea es continua (sin huecos por falta de lanzamiento).
+        // El flag `${provider}_launched` permite distinguir en el tooltip
+        // si este período realmente tuvo lanzamiento del proveedor.
+        row[provider] = max.ii;
+        row[`${provider}_model`] = max.name;
+        row[`${provider}_model_id`] = max.id;
+        row[`${provider}_launched`] = launchedThisPeriod.has(provider);
       }
       result.push(row);
     }
@@ -727,6 +809,11 @@ export function AnalyticsView() {
           </div>
         </CardHeader>
         <CardContent>
+          <ScatterProviderLegend
+            data={timelineLegendData}
+            activeProviders={activeProviders}
+            onToggle={toggleProvider}
+          />
           <div data-chart-id="evolucion-inteligencia">
           <ResponsiveContainer width="100%" height={320} debounce={50}>
             <LineChart
@@ -800,25 +887,33 @@ export function AnalyticsView() {
                 }}
               />
               <Legend
-                wrapperStyle={{ fontSize: 11 }}
-                iconType="circle"
-                iconSize={8}
+                content={() => null}
               />
-              {providersInTimeline.map((p, i) => (
-                <Line
-                  key={`${p}-${i}`}
-                  type="monotone"
-                  dataKey={p}
-                  stroke={PROVIDER_PALETTE[i % PROVIDER_PALETTE.length]}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                  // connectNulls une los periodos donde un proveedor no lanzo
-                  // modelo pero ya existia: la linea sube escalonadamente con el
-                  // maximo acumulado y se mantiene continua (NO cortada).
-                  connectNulls
-                />
-              ))}
+              {providersInTimeline.map((p, i) => {
+                const isVisible =
+                  activeProviders.length === 0 ||
+                  activeProviders.includes(p);
+                return (
+                  <Line
+                    key={`${p}-${i}`}
+                    type="monotone"
+                    dataKey={p}
+                    stroke={PROVIDER_PALETTE[i % PROVIDER_PALETTE.length]}
+                    strokeWidth={2}
+                    hide={!isVisible}
+                    // Puntos ocultos por defecto (estilo Evolución de Precios):
+                    // las líneas quedan limpias y solo aparece el punto al
+                    // pasar el cursor. Mantiene la clickabilidad vía activeDot.
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                    // connectNulls ya no es estrictamente necesario (la serie
+                    // ahora es uniforme y nunca hay nulls intermedios), pero se
+                    // mantiene como red de seguridad por si algún proveedor no
+                    // tiene ningún lanzamiento antes de cierto período.
+                    connectNulls
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
           </div>
@@ -1737,7 +1832,11 @@ export function AnalyticsView() {
                         ]
                       }
                       strokeWidth={2}
-                      dot={{ r: 3, onClick: openFicha(p) }}
+                      // Puntos ocultos por defecto (estilo Evolución de
+                      // Precios): la línea queda limpia y al hacer hover
+                      // aparece el activeDot clickeable que abre la ficha
+                      // técnica del modelo máximo acumulado de ese período.
+                      dot={false}
                       activeDot={{ r: 5, onClick: openFicha(p) }}
                       // connectNulls une los periodos donde un proveedor no
                       // lanzó modelo pero ya existía: la línea sube

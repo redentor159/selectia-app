@@ -1476,6 +1476,14 @@ function applyOpenRouterEnrichment(
       m.maxOutput = m.orMaxCompletion;
     }
 
+    // Release date fallback: AA a veces omite release_date para modelos
+    // nuevos o legacy. OR tiene `created` (epoch Unix en segundos) que
+    // podemos usar como respaldo conservador. Solo llena huecos.
+    if (m.releaseDate == null && or.created != null) {
+      const createdMs = or.created < 1e12 ? or.created * 1000 : or.created;
+      m.releaseDate = new Date(createdMs).toISOString();
+    }
+
     // --- Architecture / modalities ---
     m.orInputModalities = or.architecture?.input_modalities ?? null;
     m.orOutputModalities = or.architecture?.output_modalities ?? null;
@@ -1516,6 +1524,202 @@ function applyOpenRouterEnrichment(
       m.orBenchmarksAaIntelligence = aa.intelligence_index ?? null;
       m.orBenchmarksAaCoding = aa.coding_index ?? null;
       m.orBenchmarksAaAgentic = aa.agentic_index ?? null;
+
+      // Backfill conservative: si el modelo ya existe en AA pero vino sin II,
+      // usar el dato de OR como respaldo. Solo llena huecos — nunca pisa
+      // un II que AA ya entregó. Misma lógica para Coding y Agentic.
+      // Fix V4: modelos como Claude Fable 5 aparecen en AA con II=null
+      // pero OR sí tiene sus benchmarks (copia legítima de AA, misma escala).
+      if (m.intelligenceIndex == null && aa.intelligence_index != null) {
+        m.intelligenceIndex = aa.intelligence_index;
+      }
+      if (m.codingIndex == null && aa.coding_index != null) {
+        m.codingIndex = aa.coding_index;
+      }
+      if (m.agenticIndex == null && aa.agentic_index != null) {
+        m.agenticIndex = aa.agentic_index;
+      }
+    }
+  }
+
+  // ============================================================
+  // Upsert puntual: modelos COMPLETOS de OR faltantes en AA cuando
+  // AA solo trae la variante de esfuerzo (low/medium/high/max/xhigh/minimal).
+  //
+  // Motivación: AA lista "GPT-5.6 Sol (low)" con II=49.4, pero el modelo
+  // completo "GPT-5.6 Sol" (sin sufijo) NO existe en AA. OR sí lo tiene
+  // (openai/gpt-5.6-sol, II=58.9). Son modelos distintos — el low usa menos
+  // cómputo de inferencia, su II es real y válido. El completo también.
+  //
+  // Reglas (no mezcla datos, no pisa II, no duplica):
+  //   1. Solo en modelos AA con sufijo (low/medium/high/max/xhigh/minimal)
+  //   2. Calcular nombre base sin sufijo (ej: "GPT-5.6 Sol (low)" → "gpt56sol")
+  //   3. Buscar en OR modelo con ese base normalizado Y SIN sufijo de esfuerzo
+  //   4. Verificar que NINGÚN modelo AA ya matchee ese base (evita duplicar)
+  //   5. Verificar que ese OR modelo no haya sido ya insertado en este pase
+  //   6. Requiere II del OR modelo (mismo gate que el upsert global)
+  //   7. FiltroAntiAliasTarget: descarta alias de OR (el real se inserta aparte)
+  //
+  // No afecta al upsert global: corre siempre (sin flag ENABLE_OR_UPSERT),
+  // pero soloafil casos puntuales donde AA solo tiene la variante.
+  // ============================================================
+  {
+    const EFFORT_RE_PUNTUAL = /\((high|low|max|xhigh|minimal|medium)\)/i;
+    const SUFFIX_STRIP_RE = /\s*\((high|low|max|xhigh|minimal|medium)\)\s*$/i;
+    const insertedOrIds = new Set<string>();
+
+    // Precomputar base normalizado para cada modelo AA con sufijo de esfuerzo.
+    // Solo esos son candidatos a buscar contraparte completa en OR.
+    const aaVariants = models
+      .filter((m) => EFFORT_RE_PUNTUAL.test(m.name))
+      .map((m) => ({
+        model: m,
+        base: normalizeForMatching(m.name.replace(SUFFIX_STRIP_RE, "")),
+      }))
+      .filter((x) => x.base.length >= 6);
+
+    // Set de bases AA ya existentes (sin sufijo) — nos dice si AA ya
+    // trajo el modelo completo. Si lo tiene, no insertamos.
+    // Usamos namesMatch (substring ≥6 chars) porque normalizeForMatching
+    // conserva el prefijo creator ("OpenAI: ..." → "openai...") y hace
+    // que el match exacto falle. namesMatch ya está probado en el match AA↔OR.
+    const aaBases: string[] = [];
+    for (const m of models) {
+      if (!EFFORT_RE_PUNTUAL.test(m.name)) {
+        aaBases.push(normalizeForMatching(m.name));
+      }
+    }
+
+    for (const { base } of aaVariants) {
+      // Si AA ya tiene el modelo completo con ese base, NO insertar.
+      if (aaBases.some((b) => namesMatch(b, base))) continue;
+
+      // Buscar en OR el modelo completo cuyo nombre matchea con base
+      // (namesMatch — no === estricto, porque OR prependea "OpenAI: ").
+      // Debe NO ser variante de esfuerzo en OR tampoco.
+      let orCandidate: ORModel | null = null;
+      for (const orItem of openrouter.modelsMap.values()) {
+        if (orItem.alias_target != null) continue;
+        if (EFFORT_RE_PUNTUAL.test(orItem.name)) continue;
+        if (!namesMatch(orItem.name, base)) continue;
+        // Garantía anti-falso-positivo: el nombre base debe estar contenido
+        // en el nombre de OR (no en sentido inverso) para evitar que
+        // "GPT-5.6 Sol Max" matchee con "GPT-5.6 Sol".
+        const orNorm = normalizeForMatching(orItem.name);
+        if (!orNorm.includes(base)) continue;
+        const aa = orItem.benchmarks?.artificial_analysis;
+        if (aa?.intelligence_index == null) continue;
+        // Guard anti-duplicado: si el II de OR es IGUAL al II de alguna
+        // variante AA con ese base, significa que AA evaluó solo una
+        // variante y la reportó con el mismo II que el modelo completo —
+        // son el mismo, no hay que insertar un duplicado.
+        const aaVariantII = aaVariants
+          .filter((v) => v.base === base)
+          .map((v) => v.model.intelligenceIndex)
+          .filter((ii): ii is number => ii != null);
+        if (aaVariantII.length > 0 && aaVariantII.includes(aa.intelligence_index)) continue;
+        orCandidate = orItem;
+        break;
+      }
+
+      if (!orCandidate) continue;
+      if (!orCandidate.benchmarks?.artificial_analysis) continue;
+      if (orCandidate.id && insertedOrIds.has(orCandidate.id)) continue;
+      if (orCandidate.id) insertedOrIds.add(orCandidate.id);
+      // NOTA: NO consultamos claimedOrIds aquí. El match normal AA↔OR
+      // (línea 1427) puede haber "reclamado" el modelo completo de OR
+      // como si fuera la variante low — porque namesMatch(m.nname, or.name)
+      // responde true cuando "kimik3" es substring de "moonshotaimikimik3".
+      // Ese match es correcto para enriquecer la ficha técnica de la
+      // variante low, pero NO nos impide insertar el modelo completo
+      // como entrada separada. Los guards reales anti-duplicado son:
+      //   - aaBases.some(b => namesMatch(b, base))  → AA ya trae el completo
+      //   - aaVariantII.includes(aa.intelligence_index) → mismo II = mismo modelo
+      //   - insertedOrIds  → ya insertamos este OR model en este pase
+
+      // Construir AIModel nuevo (mismo patrón que el upsert global línea 1580-1664).
+      const aa = orCandidate.benchmarks.artificial_analysis;
+      const creator = orCandidate.id.split('/')[0] ?? undefined;
+      const { provider, family, domain, color } = inferProvider(orCandidate.name, creator);
+      const { license, licenseName } = inferLicense(orCandidate.name, provider);
+      const params = inferParameters(orCandidate.name);
+      const openWeights = license === "open-source-full" || license === "conditional";
+      const inputPrice = toUsdPerMillion(orCandidate.pricing?.prompt);
+      const outputPrice = toUsdPerMillion(orCandidate.pricing?.completion);
+      const createdMs = orCandidate.created
+        ? orCandidate.created < 1e12
+          ? orCandidate.created * 1000
+          : orCandidate.created
+        : null;
+      const releaseDate = createdMs ? new Date(createdMs).toISOString() : null;
+
+      const newModel: AIModel = {
+        id: `orfull-${orCandidate.id}`,
+        name: orCandidate.name,
+        provider,
+        providerDomain: domain,
+        providerColor: color,
+        family,
+        license,
+        licenseName,
+        priceInputUsd: inputPrice,
+        priceOutputUsd: outputPrice,
+        priceCacheHitUsd: toUsdPerMillion(orCandidate.pricing?.input_cache_read),
+        priceCacheWriteUsd: toUsdPerMillion(orCandidate.pricing?.input_cache_write),
+        contextWindow: orCandidate.context_length ?? orCandidate.top_provider?.context_length ?? 8192,
+        contextWindowSource: (orCandidate.context_length ?? orCandidate.top_provider?.context_length) ? "or" : "unknown",
+        maxOutput: orCandidate.top_provider?.max_completion_tokens ?? 4096,
+        intelligenceIndex: aa.intelligence_index ?? null,
+        codingIndex: aa.coding_index ?? null,
+        agenticIndex: aa.agentic_index ?? null,
+        speedTps: null,
+        ttftMs: null,
+        elo: null,
+        eloCi: null,
+        eloVotes: null,
+        capabilities: inferCapabilities(orCandidate.name),
+        knowledgeCutoff: orCandidate.knowledge_cutoff ?? (releaseDate ? inferKnowledgeCutoff(releaseDate, orCandidate.name) : null),
+        releaseDate,
+        parameters: params,
+        isMoE: inferMoE(orCandidate.name),
+        freeAccess: inferFreeAccess(provider, openWeights, (inputPrice ?? 0) > 0),
+        inferenceProviders: [{ name: provider, cheapest: true }],
+        openWeights,
+        ollamaAvailable: openWeights,
+        active: orCandidate.expiration_date ? false : true,
+        orModelId: orCandidate.id ?? null,
+        orCanonicalSlug: orCandidate.canonical_slug ?? null,
+        orName: orCandidate.name ?? null,
+        orDescription: orCandidate.description ?? null,
+        orCreatedAt: orCandidate.created ?? null,
+        orIsAlias: null,
+        orAliasTargetSlug: null,
+        orContextLength: orCandidate.context_length ?? orCandidate.top_provider?.context_length ?? null,
+        orMaxCompletion: orCandidate.top_provider?.max_completion_tokens ?? null,
+        orIsModerated: orCandidate.top_provider?.is_moderated ?? null,
+        orInputPrice: inputPrice,
+        orOutputPrice: outputPrice,
+        orCacheReadPrice: toUsdPerMillion(orCandidate.pricing?.input_cache_read),
+        orCacheWritePrice: toUsdPerMillion(orCandidate.pricing?.input_cache_write),
+        orWebSearchPrice: orCandidate.pricing?.web_search ? parseFloat(orCandidate.pricing.web_search) : null,
+        orHuggingFaceId: orCandidate.hugging_face_id ?? null,
+        orKnowledgeCutoff: orCandidate.knowledge_cutoff ?? null,
+        orExpirationDate: orCandidate.expiration_date ?? null,
+        orInputModalities: orCandidate.architecture?.input_modalities ?? null,
+        orOutputModalities: orCandidate.architecture?.output_modalities ?? null,
+        orTokenizer: orCandidate.architecture?.tokenizer ?? null,
+        orInstructType: orCandidate.architecture?.instruct_type ?? null,
+        orSupportedParameters: orCandidate.supported_parameters ?? null,
+        orReasoningMandatory: orCandidate.reasoning?.mandatory ?? null,
+        orReasoningDefaultEnabled: orCandidate.reasoning?.default_enabled ?? null,
+        orReasoningEfforts: orCandidate.reasoning?.supported_efforts ?? null,
+        orBenchmarksAaIntelligence: aa.intelligence_index ?? null,
+        orBenchmarksAaCoding: aa.coding_index ?? null,
+        orBenchmarksAaAgentic: aa.agentic_index ?? null,
+      };
+
+      models.push(newModel);
+      upserted++;
     }
   }
 
