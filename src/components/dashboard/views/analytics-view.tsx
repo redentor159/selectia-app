@@ -1846,6 +1846,7 @@ export function AnalyticsView() {
                     />
                   );
                 })}
+                {ctx.brush}
               </LineChart>
             );
           }}
@@ -1972,6 +1973,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -2079,6 +2081,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -2190,6 +2193,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />

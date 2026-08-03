@@ -903,6 +903,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -984,6 +985,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />

@@ -39,6 +39,15 @@ export interface ChartDialogContext {
   onPointClick: (modelId: string) => void;
   activeProviders: string[];
   onToggleProvider: (p: string) => void;
+  /**
+   * Elemento <Brush> de Recharts ya configurado por el modal. Recharts
+   * exige que <Brush> sea un hijo directo del chart (LineChart, ScatterChart,
+   * etc.), NO un hermano del ResponsiveContainer. Por eso viaja por contexto:
+   * la vista lo inserta dentro de su chart en el render prop con {ctx.brush}.
+   * Sin esto el Brush no renderiza (verificado contra la doc oficial:
+   * "designed to be used within specific parent chart components").
+   */
+  brush: ReactNode;
 }
 
 /** Resolución temporal del timeline (mismo conjunto de valores que AnalyticsView). */
@@ -180,6 +189,25 @@ export function ChartExpandDialog({
     ? computeDomain(data, zoom, brushDataKey)
     : defaultXDomain;
 
+  // Brush preconfigurado que viaja por ctx.brush. La vista lo inserta como
+  // hijo directo de su chart (LineChart/ScatterChart) — Recharts NO renderiza
+  // <Brush> como hermano del ResponsiveContainer (verificado en doc oficial).
+  const brushElement = (
+    <Brush
+      dataKey={brushDataKey}
+      height={28}
+      travellerWidth={10}
+      stroke="var(--border-strong)"
+      fill="var(--bg-overlay)"
+      startIndex={zoom?.start ?? 0}
+      endIndex={zoom?.end ?? lastIndex}
+      onChange={(r) => {
+        if (!r) return;
+        setZoom({ start: r.startIndex ?? 0, end: r.endIndex ?? lastIndex });
+      }}
+    />
+  );
+
   const ctx: ChartDialogContext = useMemo(
     () => ({
       xDomain,
@@ -187,8 +215,14 @@ export function ChartExpandDialog({
       onPointClick: (modelId: string) => setFichaModelId(modelId),
       activeProviders,
       onToggleProvider: onToggle,
+      brush: brushElement,
     }),
-    [xDomain, zoom, activeProviders, onToggle]
+    // brushElement es estable por render (sin deps dinámicas más allá de
+    // brushDataKey, lastIndex y zoom que ya están cubiertos); lo incluimos
+    // en deps vía el cierre para que useMemo lo recalcule cuando zoom/data
+    // cambien. Lo simplificamos listando las entradas reales.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [xDomain, zoom, activeProviders, onToggle, brushDataKey, lastIndex, data]
   );
 
   // Leyenda: pares únicos provider + color derivados de los puntos del gráfico
@@ -278,7 +312,10 @@ export function ChartExpandDialog({
           </div>
         </div>
 
-        {/* Gráfico ampliado (~70vh) — conserva data-chart-id del origen */}
+        {/* Gráfico ampliado — el contenedor flex-1 ocupa todo el espacio
+            disponible; el Brush viaja por ctx.brush y la vista lo inserta
+            DENTRO del chart (Recharts exige que <Brush> sea hijo de
+            LineChart/ScatterChart, no hermano del ResponsiveContainer). */}
         <div className="flex-1 min-h-0 flex flex-col p-2">
           <div data-chart-id={chartId} className="h-[70vh] max-h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -288,21 +325,6 @@ export function ChartExpandDialog({
               {renderChart(ctx) as ReactElement}
             </ResponsiveContainer>
           </div>
-          {/* Brush controlado — zoom por dominio en el eje X (design.md sección 3).
-              Los travellers nativos permiten pan sin cambiar el tamaño del rango. */}
-          <Brush
-            dataKey={brushDataKey}
-            height={28}
-            travellerWidth={10}
-            stroke="var(--border-strong)"
-            fill="var(--bg-overlay)"
-            startIndex={zoom?.start ?? 0}
-            endIndex={zoom?.end ?? lastIndex}
-            onChange={(r) => {
-              if (!r) return;
-              setZoom({ start: r.startIndex ?? 0, end: r.endIndex ?? lastIndex });
-            }}
-          />
         </div>
 
         {/* Ficha técnica anidada — patrón tabla-view.tsx L443-448 */}
