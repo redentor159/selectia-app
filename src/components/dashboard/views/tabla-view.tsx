@@ -260,6 +260,22 @@ export function TablaView() {
     });
   }, [filteredModels, sortKey, sortDir]);
 
+  // Proveedores únicos ordenados por su Intelligence Index máximo (descendente),
+  // para que los más relevantes aparezcan primero en el filtro.
+  const providersByII = useMemo(() => {
+    if (!data) return [];
+    const maxII = new Map<string, number>();
+    for (const m of data.models) {
+      if (m.intelligenceIndex != null) {
+        const curr = maxII.get(m.provider) ?? 0;
+        if (m.intelligenceIndex > curr) maxII.set(m.provider, m.intelligenceIndex);
+      }
+    }
+    return [...new Set(data.models.map((m) => m.provider))].sort(
+      (a, b) => (maxII.get(b) ?? 0) - (maxII.get(a) ?? 0)
+    );
+  }, [data]);
+
   const handleSort = useCallback((key: SortKey) => {
     setSortKey((prev) => {
       if (prev === key) setSortDir((d) => (d === "asc" ? "desc" : d === "desc" ? null : "asc"));
@@ -351,7 +367,7 @@ export function TablaView() {
       {showFilters && (
         <FilterPanel
           appliedFilters={filters}
-          providers={[...new Set(data.models.map((m) => m.provider))].sort()}
+          providers={providersByII}
           onApply={handleApplyFilters}
           onReset={handleResetFilters}
           onLiveSearch={handleLiveSearch}

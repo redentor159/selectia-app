@@ -218,10 +218,10 @@ function IngenieroOverview() {
   // already carries provider + color for every point drawn on the first chart;
   // the Adopción legend gets its own derivation below from adoptionData.
   const allProvidersData = useMemo(() => {
-    return scatterData.map((d) => ({ provider: d.provider, color: d.color }));
+    return scatterData.map((d) => ({ provider: d.provider, color: d.color, z: d.y }));
   }, [scatterData]);
   const adoptionProvidersData = useMemo(() => {
-    return adoptionData.map((d) => ({ provider: d.provider, color: d.color }));
+    return adoptionData.map((d) => ({ provider: d.provider, color: d.color, z: d.y }));
   }, [adoptionData]);
 
   // Modelos por Modalidad — counts how many models support each input modality
