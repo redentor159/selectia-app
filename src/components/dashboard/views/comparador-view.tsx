@@ -380,6 +380,7 @@ export function ComparadorView() {
             <CardDescription className="text-xs">Normalizado 0-100% del máximo de cada eje</CardDescription>
           </CardHeader>
           <CardContent>
+            <div data-chart-id="comparador-radar-capacidades">
             <ResponsiveContainer width="100%" height={320} debounce={50}>
               <RadarChart data={radarData}>
                 <PolarGrid stroke="var(--border-default)" />
@@ -408,6 +409,7 @@ export function ComparadorView() {
                 {models.length <= 3 && <Legend wrapperStyle={{ fontSize: 10 }} />}
               </RadarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 

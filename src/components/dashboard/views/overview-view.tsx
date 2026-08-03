@@ -21,6 +21,7 @@ import {
   Activity,
   ExternalLink,
   Layers,
+  Maximize2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,7 @@ import { CalculadoraView } from "./calculadora-view";
 import { SaludView } from "./salud-view";
 import { GerenteView } from "./gerente-view";
 import { AnalyticsView, ScatterProviderLegend } from "./analytics-view";
+import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 
 const EXAMPLE_QUERIES = [
   "Redactar correo a cliente sobre demora en entrega",
@@ -149,6 +151,7 @@ function IngenieroOverview() {
           rawPrice: blended, // keep raw for tooltip
           z: m.speedTps ?? 50,
           name: m.name,
+          id: m.id,
           provider: m.provider,
           color: m.providerColor || "#5e6ad2",
           free: m.freeAccess === "free-100" || blended === 0,
@@ -170,6 +173,7 @@ function IngenieroOverview() {
         y: m.intelligenceIndex!,
         z: m.hfLikes ?? 10,
         name: m.name,
+        id: m.id,
         provider: m.provider,
         color: m.providerColor || "#5e6ad2", // fallback color
         likes: m.hfLikes ?? 0,
@@ -196,6 +200,14 @@ function IngenieroOverview() {
   // Provider filter state shared by both Overview scatters (Inteligencia vs
   // Precio & Adopción vs Calidad). Mirrors the pattern in analytics-view.tsx:116-156.
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
+
+  // Gráfico abierto en modal (null = ninguno). Un único estado por gráfico:
+  // el montaje condicional `{open && <ChartExpandDialog … />}` desmonta el
+  // modal al cerrar, garantizando estado fresco (zoom reseteado) por apertura.
+  const [openChart, setOpenChart] = useState<
+    "inteligencia-vs-precio" | "adopcion-vs-calidad" | null
+  >(null);
+
   const toggleProvider = (provider: string) => {
     if (provider === "ALL") {
       setActiveProviders([]);
@@ -397,10 +409,21 @@ function IngenieroOverview() {
                   valor
                 </CardDescription>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0"
+                title="Expandir gráfico"
+                aria-label="Expandir gráfico"
+                onClick={() => setOpenChart("inteligencia-vs-precio")}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
             </div>
             <ScatterProviderLegend data={allProvidersData} activeProviders={activeProviders} onToggle={toggleProvider} />
           </CardHeader>
           <CardContent>
+            <div data-chart-id="inteligencia-vs-precio">
             <ResponsiveContainer width="100%" height={320} debounce={50}>
               <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
                 <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
@@ -473,6 +496,7 @@ function IngenieroOverview() {
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -487,6 +511,7 @@ function IngenieroOverview() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div data-chart-id="top-elo">
             <ResponsiveContainer width="100%" height={320} debounce={50}>
               <BarChart
                 data={eloData}
@@ -539,6 +564,7 @@ function IngenieroOverview() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -577,6 +603,7 @@ function IngenieroOverview() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col justify-center min-h-[220px]">
+                <div data-chart-id="modelos-por-modalidad" className="h-full w-full">
                 <ResponsiveContainer width="100%" height="100%" debounce={50}>
                   <BarChart
                     data={modalitiesData}
@@ -627,6 +654,7 @@ function IngenieroOverview() {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -648,10 +676,21 @@ function IngenieroOverview() {
                     HF · ↑→ = "Zona de Confianza": populares Y muy inteligentes
                   </CardDescription>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 shrink-0"
+                  title="Expandir gráfico"
+                  aria-label="Expandir gráfico"
+                  onClick={() => setOpenChart("adopcion-vs-calidad")}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
               </div>
               <ScatterProviderLegend data={adoptionProvidersData} activeProviders={activeProviders} onToggle={toggleProvider} />
             </CardHeader>
             <CardContent>
+              <div data-chart-id="adopcion-vs-calidad">
               <ResponsiveContainer width="100%" height={300} debounce={50}>
                 <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
                   <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
@@ -716,6 +755,7 @@ function IngenieroOverview() {
                   </Scatter>
                 </ScatterChart>
               </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -774,6 +814,180 @@ function IngenieroOverview() {
           <ArrowUpRight className="h-3 w-3" />
         </button>
       </section>
+
+      {/* Modal expandido: Inteligencia vs Precio. Montaje condicional para
+          reset de zoom por apertura (spec). El JSX del ScatterChart viaja tal
+          cual (tooltip custom incluido, alcance estricto); solo cambian el
+          dominio X (ctx.xDomain, espacio log10, default [-2,2.5]) y el click
+          de puntos: dentro del modal abre la ficha técnica, NO alterna
+          proveedores (spec). Fuera del modal el click sigue siendo toggleProvider. */}
+      {openChart === "inteligencia-vs-precio" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Inteligencia vs Precio"
+          subtitle="Cada punto = modelo · X = precio USD/M (log) · Y = inteligencia · tamaño = velocidad (tok/s) · click en un punto abre la ficha técnica"
+          chartId="inteligencia-vs-precio"
+          data={scatterData}
+          models={data.models}
+          defaultXDomain={[-2, 2.5]}
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          renderChart={(ctx) => (
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+              <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Precio USD/M (log10)"
+                domain={ctx.xDomain}
+                ticks={[-2, -1, 0, 1, 2]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                tickFormatter={(v) => {
+                  const real = Math.pow(10, v);
+                  if (real >= 10) return `$${real.toFixed(0)}`;
+                  if (real >= 1) return `$${real.toFixed(0)}`;
+                  return real.toFixed(2);
+                }}
+                label={{
+                  value: "Precio USD/M (log)",
+                  position: "insideBottom",
+                  offset: -10,
+                  fill: "var(--text-secondary)",
+                  fontSize: 11,
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="Intelligence Index"
+                domain={[20, 60]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                width={40}
+              />
+              <ZAxis type="number" dataKey="z" range={[40, 400]} />
+              <RechartsTooltip
+                cursor={{ strokeDasharray: "3 3", stroke: "var(--border-strong)" }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as (typeof scatterData)[0];
+                  return (
+                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                      <div className="font-semibold text-[var(--text-primary)] mb-1">
+                        {d.name}
+                      </div>
+                      <div className="text-[var(--text-secondary)] space-y-0.5">
+                        <div>II: <span className="num text-[var(--text-primary)]">{d.y}</span></div>
+                        <div>Blended: <span className="num text-[var(--text-primary)]">${d.rawPrice.toFixed(2)}/M</span></div>
+                        <div>Vel: <span className="num text-[var(--text-primary)]">{d.z} tok/s</span></div>
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Scatter data={scatterData} isAnimationActive={false}>
+                {scatterData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.color}
+                    fillOpacity={getPointOpacity(entry.provider)}
+                    stroke={entry.color}
+                    strokeOpacity={getPointOpacity(entry.provider)}
+                    strokeWidth={1}
+                    onClick={() => ctx.onPointClick(entry.id)}
+                    style={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          )}
+        />
+      )}
+
+      {/* Modal expandido: Adopción vs Calidad. Ídem anterior; dominio log10
+          default [2,7] (descargas HF) e Y = Intelligence Index. */}
+      {openChart === "adopcion-vs-calidad" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Adopción vs Calidad"
+          subtitle="X = descargas HF (log) · Y = Intelligence Index · tamaño = likes HF · click en un punto abre la ficha técnica"
+          chartId="adopcion-vs-calidad"
+          data={adoptionData}
+          models={data.models}
+          defaultXDomain={[2, 7]}
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          renderChart={(ctx) => (
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+              <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Downloads (log10)"
+                domain={ctx.xDomain}
+                ticks={[2, 3, 4, 5, 6, 7]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                tickFormatter={(v) => {
+                  const real = Math.pow(10, v);
+                  if (real >= 1000000) return `${(real / 1000000).toFixed(0)}M`;
+                  if (real >= 1000) return `${(real / 1000).toFixed(0)}K`;
+                  return String(real);
+                }}
+                label={{ value: "Downloads (escala log)", position: "insideBottom", offset: -10, fill: "var(--text-secondary)", fontSize: 11 }}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="Intelligence Index"
+                domain={[0, 60]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                width={40}
+              />
+              <ZAxis type="number" dataKey="z" range={[40, 400]} />
+              <RechartsTooltip
+                cursor={{ strokeDasharray: "3 3", stroke: "var(--border-strong)" }}
+                isAnimationActive={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as { name: string; provider: string; color: string; rawDownloads: number; y: number; likes: number };
+                  return (
+                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                      <div className="font-semibold text-[var(--text-primary)] mb-1">{d.name}</div>
+                      <div className="text-[var(--text-secondary)]">{d.provider}</div>
+                      <div className="num mt-1">⬇ {d.rawDownloads >= 1000 ? `${(d.rawDownloads / 1000).toFixed(1)}K` : d.rawDownloads} downloads</div>
+                      <div className="num">♥ {d.likes} likes</div>
+                      <div className="num">II: {d.y}</div>
+                    </div>
+                  );
+                }}
+              />
+              <Scatter data={adoptionData} isAnimationActive={false}>
+                {adoptionData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.color}
+                    fillOpacity={getPointOpacity(entry.provider)}
+                    stroke={entry.color}
+                    strokeOpacity={getPointOpacity(entry.provider)}
+                    strokeWidth={1}
+                    onClick={() => ctx.onPointClick(entry.id)}
+                    style={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          )}
+        />
+      )}
     </div>
   );
 }

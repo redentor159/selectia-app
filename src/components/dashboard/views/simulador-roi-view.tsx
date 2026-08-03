@@ -334,6 +334,7 @@ export function SimuladorRoiView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div data-chart-id="simulador-roi-proyeccion">
           <ResponsiveContainer width="100%" height={340} debounce={50}>
             <LineChart data={projectionData} margin={{ top: 10, right: 16, bottom: 8, left: 8 }}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
@@ -404,6 +405,7 @@ export function SimuladorRoiView() {
               />
             </LineChart>
           </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
     </div>

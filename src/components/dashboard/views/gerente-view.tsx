@@ -221,6 +221,7 @@ export function GerenteView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div data-chart-id="gerente-inteligencia-vs-precio">
             <ResponsiveContainer width="100%" height={300} debounce={50}>
               <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
                 <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
@@ -287,9 +288,10 @@ export function GerenteView() {
                       strokeWidth={1}
                     />
                   ))}
-                </Scatter>
-              </ScatterChart>
+              </Scatter>
+            </ScatterChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
@@ -304,6 +306,7 @@ export function GerenteView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div data-chart-id="gerente-top-elo">
             <ResponsiveContainer width="100%" height={300} debounce={50}>
               <BarChart
                 data={eloData}
@@ -354,6 +357,7 @@ export function GerenteView() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </section>

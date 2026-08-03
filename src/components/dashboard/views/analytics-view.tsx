@@ -27,12 +27,13 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, TrendingUp } from "lucide-react";
+import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, TrendingUp, Maximize2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import type { LicenseType } from "@/lib/types";
 import { computeBlendedUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 
 export function ScatterProviderLegend({
   data,
@@ -127,6 +128,15 @@ export function AnalyticsView() {
   const { data, isLoading } = useDashboardData();
   const [timeRes, setTimeRes] = useState<"week" | "month" | "quarter" | "year">("quarter");
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
+  // Gráfico abierto en modal (null = ninguno). Montaje condicional
+  // `{openChart === "x" && …}` → desmontaje → zoom fresco por apertura (spec).
+  const [openChart, setOpenChart] = useState<
+    | "evolucion-inteligencia"
+    | "velocidad-vs-contexto"
+    | "coding-vs-agentic"
+    | "eficiencia"
+    | null
+  >(null);
   const [visibleColsHeatmap, setVisibleColsHeatmap] = useState<Record<string, boolean>>({
     priceAvg: true,
     iiAvg: true,
@@ -328,7 +338,10 @@ export function AnalyticsView() {
     );
 
     const result: Record<string, any>[] = [];
-    const cumulativeMax = new Map<string, { ii: number; name: string }>();
+    const cumulativeMax = new Map<
+      string,
+      { ii: number; name: string; id: string }
+    >();
 
     for (const [quarter, group] of sortedQuarters) {
       for (const m of group.models) {
@@ -338,6 +351,7 @@ export function AnalyticsView() {
           cumulativeMax.set(m.provider, {
             ii: m.intelligenceIndex!,
             name: m.name,
+            id: m.id,
           });
         }
       }
@@ -354,6 +368,7 @@ export function AnalyticsView() {
         if (launchedThisPeriod.has(provider)) {
           row[provider] = max.ii;
           row[`${provider}_model`] = max.name;
+          row[`${provider}_model_id`] = max.id; // ficha técnica (WU3, 4.1b)
         }
       }
       result.push(row);
@@ -379,6 +394,16 @@ export function AnalyticsView() {
       .map((entry) => entry[0]);
   }, [data]);
 
+  // Leyenda del timeline para el modal: pares provider + color derivados de
+  // providersInTimeline + PROVIDER_PALETTE (design.md sección 6). El color
+  // coincide con la línea del gráfico; ScatterProviderLegend deduplica.
+  const timelineLegendData = useMemo(() => {
+    return providersInTimeline.map((p, i) => ({
+      provider: p,
+      color: PROVIDER_PALETTE[i % PROVIDER_PALETTE.length],
+    }));
+  }, [providersInTimeline]);
+
   const contextSpeedData = useMemo(() => {
     if (!data) return [];
     return data.models
@@ -392,6 +417,7 @@ export function AnalyticsView() {
       )
       .map((m) => ({
         name: m.name,
+        id: m.id, // ficha técnica desde el modal (WU3, 4.1b)
         provider: m.provider,
         x: Math.log2(m.contextWindow),
         y: m.speedTps!,
@@ -412,6 +438,7 @@ export function AnalyticsView() {
       )
       .map((m) => ({
         name: m.name,
+        id: m.id, // ficha técnica desde el modal (WU3, 4.1b)
         provider: m.provider,
         x: m.codingIndex!,
         y: m.agenticIndex!,
@@ -437,6 +464,7 @@ export function AnalyticsView() {
         const blendedPrice = m.priceInputUsd! * 0.7 + m.priceOutputUsd! * 0.3;
         return {
           name: m.name,
+          id: m.id, // ficha técnica desde el modal (WU3, 4.1b)
           provider: m.provider,
           x: blendedPrice,
           y: m.speedTps!,
@@ -671,22 +699,35 @@ export function AnalyticsView() {
               releaseDate
             </CardDescription>
           </div>
-          <select
-            className="text-xs bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded px-2 py-1 outline-none text-[var(--text-primary)] cursor-pointer"
-            value={timeRes}
-            onChange={(e) =>
-              setTimeRes(
-                e.target.value as "week" | "month" | "quarter" | "year"
-              )
-            }
-          >
-            <option value="week">Semanal</option>
-            <option value="month">Mensual</option>
-            <option value="quarter">Trimestral (Q)</option>
-            <option value="year">Anual</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              className="text-xs bg-[var(--bg-elevated)] border border-[var(--border-strong)] rounded px-2 py-1 outline-none text-[var(--text-primary)] cursor-pointer"
+              value={timeRes}
+              onChange={(e) =>
+                setTimeRes(
+                  e.target.value as "week" | "month" | "quarter" | "year"
+                )
+              }
+            >
+              <option value="week">Semanal</option>
+              <option value="month">Mensual</option>
+              <option value="quarter">Trimestral (Q)</option>
+              <option value="year">Anual</option>
+            </select>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0"
+              title="Expandir gráfico"
+              aria-label="Expandir gráfico"
+              onClick={() => setOpenChart("evolucion-inteligencia")}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
+          <div data-chart-id="evolucion-inteligencia">
           <ResponsiveContainer width="100%" height={320} debounce={50}>
             <LineChart
               data={timelineData}
@@ -780,6 +821,7 @@ export function AnalyticsView() {
               ))}
             </LineChart>
           </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
@@ -811,6 +853,7 @@ export function AnalyticsView() {
             </div>
           </CardHeader>
           <CardContent>
+            <div data-chart-id="evolucion-precios">
             <ResponsiveContainer width="100%" height={300} debounce={50}>
               <LineChart
                 data={data.priceIndex}
@@ -936,6 +979,7 @@ export function AnalyticsView() {
                 />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -953,6 +997,7 @@ export function AnalyticsView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div data-chart-id="open-weights-vs-propietario">
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
               data={openWeightsData}
@@ -1031,6 +1076,7 @@ export function AnalyticsView() {
               />
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
@@ -1039,13 +1085,27 @@ export function AnalyticsView() {
         {/* Velocidad vs Ventana de Contexto */}
         <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
           <CardHeader className="pb-0">
-            <CardTitle className="text-base flex items-center gap-1.5">
-              Velocidad vs Ventana de Contexto
-            </CardTitle>
-            <CardDescription className="text-xs">
-              X = contexto (log) · Y = velocidad (tok/s) · tamaño = Intelligence
-              Index · ↑→ = mucho contexto Y rápido → ideal para agentes
-            </CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-1.5">
+                  Velocidad vs Ventana de Contexto
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  X = contexto (log) · Y = velocidad (tok/s) · tamaño = Intelligence
+                  Index · ↑→ = mucho contexto Y rápido → ideal para agentes
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0"
+                title="Expandir gráfico"
+                aria-label="Expandir gráfico"
+                onClick={() => setOpenChart("velocidad-vs-contexto")}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
             <ScatterProviderLegend
               data={contextSpeedData}
               activeProviders={activeProviders}
@@ -1053,6 +1113,7 @@ export function AnalyticsView() {
             />
           </CardHeader>
           <CardContent>
+            <div data-chart-id="velocidad-vs-contexto">
             <ResponsiveContainer width="100%" height={300}>
               <ScatterChart
                 margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
@@ -1158,19 +1219,34 @@ export function AnalyticsView() {
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
 
         {/* Coding Index vs Agentic Index */}
         <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
           <CardHeader className="pb-0">
-            <CardTitle className="text-base flex items-center gap-1.5">
-              Coding Index vs Agentic Index
-            </CardTitle>
-            <CardDescription className="text-xs">
-              X = Coding Index · Y = Agentic Index · tamaño = Intelligence Index ·
-              ↑→ = programa bien Y razona autónomo → top para agentes de código
-            </CardDescription>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-1.5">
+                  Coding Index vs Agentic Index
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  X = Coding Index · Y = Agentic Index · tamaño = Intelligence Index ·
+                  ↑→ = programa bien Y razona autónomo → top para agentes de código
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0"
+                title="Expandir gráfico"
+                aria-label="Expandir gráfico"
+                onClick={() => setOpenChart("coding-vs-agentic")}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
             <ScatterProviderLegend
               data={codingAgenticData}
               activeProviders={activeProviders}
@@ -1178,6 +1254,7 @@ export function AnalyticsView() {
             />
           </CardHeader>
           <CardContent>
+            <div data-chart-id="coding-vs-agentic">
             <ResponsiveContainer width="100%" height={300}>
               <ScatterChart
                 margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
@@ -1267,27 +1344,43 @@ export function AnalyticsView() {
                 </Scatter>
               </ScatterChart>
             </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Eficiencia (Velocidad vs Precio) */}
       <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base flex items-center gap-1.5">
-            Eficiencia (Velocidad vs Precio)
-          </CardTitle>
-          <CardDescription className="text-xs">
-            X = precio blended USD/M (log) · Y = velocidad (tok/s) · tamaño =
-            Intelligence Index · ↑← = rápido y barato → mejor eficiencia
-          </CardDescription>
-          <ScatterProviderLegend
+          <CardHeader className="pb-0">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-1.5">
+                  Eficiencia (Velocidad vs Precio)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  X = precio blended USD/M (log) · Y = velocidad (tok/s) · tamaño =
+                  Intelligence Index · ↑← = rápido y barato → mejor eficiencia
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0"
+                title="Expandir gráfico"
+                aria-label="Expandir gráfico"
+                onClick={() => setOpenChart("eficiencia")}
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScatterProviderLegend
             data={efficiencyData}
             activeProviders={activeProviders}
             onToggle={toggleProvider}
           />
         </CardHeader>
         <CardContent>
+          <div data-chart-id="eficiencia">
           <ResponsiveContainer width="100%" height={300}>
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
@@ -1379,6 +1472,7 @@ export function AnalyticsView() {
               </Scatter>
             </ScatterChart>
           </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
@@ -1395,6 +1489,7 @@ export function AnalyticsView() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div data-chart-id="distribucion-licencias">
           <ResponsiveContainer width="100%" height={320} debounce={50}>
             <BarChart
               data={licenseData}
@@ -1495,8 +1590,511 @@ export function AnalyticsView() {
               />
             </BarChart>
           </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Modal expandido: Evolución de Inteligencia (timeline). Eje categórico
+          por quarter: el Brush usa dataKey="quarter" y el dominio restringido
+          son categorías [catStart, catEnd] (design.md sección 3). La vista
+          además filtra timelineData por ctx.zoomIndices (alternativa
+          documentada: el dominio categórico puede no restringir en Recharts
+          2.15.4). El modal filtra las líneas visibles por activeProviders
+          (spec: herencia de filtros) y comparte timeRes con la vista (spec:
+          cambio de resolución temporal). El click en un punto abre la ficha
+          técnica (dot/activeDot con payload `{provider}_model_id`). */}
+      {openChart === "evolucion-inteligencia" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Evolución de Inteligencia"
+          subtitle="Máximo II por proveedor · click en un punto abre la ficha técnica · la resolución temporal se comparte con la vista"
+          chartId="evolucion-inteligencia"
+          data={timelineData}
+          models={data.models}
+          defaultXDomain={["auto", "auto"]}
+          brushDataKey="quarter"
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          timeRes={timeRes}
+          onTimeResChange={setTimeRes}
+          legendData={timelineLegendData}
+          renderChart={(ctx) => {
+            // Filtro por índices del rango del Brush (alternativa documentada
+            // en design.md: el dominio categórico puede no restringir).
+            const chartData = ctx.zoomIndices
+              ? timelineData.slice(
+                  ctx.zoomIndices.start,
+                  ctx.zoomIndices.end + 1
+                )
+              : timelineData;
+            // Líneas visibles según activeProviders (la vista no filtra hoy;
+            // el modal sí, según spec).
+            const visibleProviders =
+              activeProviders.length === 0
+                ? providersInTimeline
+                : providersInTimeline.filter((p) =>
+                    activeProviders.includes(p)
+                  );
+            // El payload del dot expone `{provider}_model_id` para abrir la
+            // ficha técnica (design.md sección 5); el id del modelo máximo
+            // acumulado de ese proveedor en ese período.
+            const openFicha = (provider: string) => (dotPayload: any) => {
+              const modelId =
+                dotPayload?.payload?.[`${provider}_model_id`] ??
+                dotPayload?.[`${provider}_model_id`];
+              if (modelId) ctx.onPointClick(modelId);
+            };
+            return (
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
+              >
+                <CartesianGrid
+                  stroke="var(--border-default)"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="quarter"
+                  domain={ctx.xDomain}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  width={36}
+                />
+                <RechartsTooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs">
+                        <div className="font-semibold text-[var(--text-primary)] mb-1.5">
+                          {label}
+                        </div>
+                        <div className="space-y-0.5">
+                          {payload
+                            .filter(
+                              (p) =>
+                                p.value !== undefined && p.value !== null
+                            )
+                            .sort(
+                              (a, b) =>
+                                (b.value as number) - (a.value as number)
+                            )
+                            .map((p, idx) => {
+                              const modelName =
+                                p.payload[`${p.name}_model`];
+                              return (
+                                <div
+                                  key={`${p.name}-${idx}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span
+                                    className="h-2 w-2 rounded-full"
+                                    style={{ backgroundColor: p.color }}
+                                  />
+                                  <span className="text-[var(--text-secondary)]">
+                                    {p.name}{" "}
+                                    {modelName && (
+                                      <span className="text-[10px] opacity-70">
+                                        ({modelName})
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="num text-[var(--text-primary)] ml-auto">
+                                    {p.value}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 11 }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                {visibleProviders.map((p) => {
+                  // Color estable: índice del proveedor en el set completo
+                  // (el filtrado no debe cambiar el color de la línea).
+                  const colorIndex = providersInTimeline.indexOf(p);
+                  return (
+                    <Line
+                      key={p}
+                      type="monotone"
+                      dataKey={p}
+                      stroke={
+                        PROVIDER_PALETTE[
+                          colorIndex % PROVIDER_PALETTE.length
+                        ]
+                      }
+                      strokeWidth={2}
+                      dot={{ r: 3, onClick: openFicha(p) }}
+                      activeDot={{ r: 5, onClick: openFicha(p) }}
+                      // connectNulls une los periodos donde un proveedor no
+                      // lanzó modelo pero ya existía: la línea sube
+                      // escalonadamente con el máximo acumulado y se mantiene
+                      // continua (NO cortada).
+                      connectNulls
+                    />
+                  );
+                })}
+              </LineChart>
+            );
+          }}
+        />
+      )}
+
+      {/* Modal expandido: Velocidad vs Ventana de Contexto. Brush en espacio
+          log2 precomputado (design.md sección 4): el dato `x` ya es log2 del
+          contexto; el dominio restringido usa esos valores y el tickFormatter
+          2^v → K/M sigue funcionando. Click en punto abre la ficha técnica
+          (4.2b); fuera del modal el click sigue siendo toggleProvider. */}
+      {openChart === "velocidad-vs-contexto" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Velocidad vs Ventana de Contexto"
+          subtitle="X = contexto (log2) · Y = velocidad (tok/s) · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
+          chartId="velocidad-vs-contexto"
+          data={contextSpeedData}
+          models={data.models}
+          defaultXDomain={[12, 21]}
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          renderChart={(ctx) => (
+            <ScatterChart
+              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+            >
+              <CartesianGrid
+                stroke="var(--border-default)"
+                strokeDasharray="3 3"
+              />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Context Window (log2)"
+                domain={ctx.xDomain}
+                ticks={[13, 15, 17, 19, 21]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                tickFormatter={(v) => {
+                  const real = Math.pow(2, v);
+                  if (real >= 1048576)
+                    return `${(real / 1048576).toFixed(0)}M`;
+                  if (real >= 1024)
+                    return `${(real / 1024).toFixed(0)}K`;
+                  return String(real);
+                }}
+                label={{
+                  value: "Ventana de Contexto",
+                  position: "insideBottom",
+                  offset: -10,
+                  fill: "var(--text-secondary)",
+                  fontSize: 11,
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="Speed (TPS)"
+                domain={[0, 200]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                width={30}
+              />
+              <ZAxis
+                type="number"
+                dataKey="z"
+                range={[14, 110]}
+              />
+              <RechartsTooltip
+                cursor={{
+                  strokeDasharray: "3 3",
+                  stroke: "var(--border-strong)",
+                }}
+                isAnimationActive={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as any;
+                  const formatTokens = (val: number) => {
+                    if (val >= 1000000)
+                      return `${(val / 1000000).toFixed(1).replace(".0", "")}M`;
+                    if (val >= 1000)
+                      return `${(val / 1000).toFixed(0)}K`;
+                    return String(val);
+                  };
+                  return (
+                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                      <div className="font-semibold text-[var(--text-primary)] mb-1">
+                        {d.name}
+                      </div>
+                      <div className="text-[var(--text-secondary)] space-y-0.5">
+                        <div>
+                          Ventana:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {formatTokens(d.rawContext)}
+                          </span>
+                        </div>
+                        <div>
+                          Velocidad:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y} TPS
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Scatter
+                data={contextSpeedData}
+                isAnimationActive={false}
+              >
+                {contextSpeedData.map((entry: any, i: number) => (
+                  <Cell
+                    key={i}
+                    fill={entry.color}
+                    fillOpacity={getPointOpacity(entry.provider)}
+                    stroke={entry.color}
+                    strokeOpacity={getPointOpacity(entry.provider)}
+                    onClick={() => ctx.onPointClick(entry.id)}
+                    style={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          )}
+        />
+      )}
+
+      {/* Modal expandido: Coding Index vs Agentic Index. Dominio lineal real
+          [30,80] (design.md sección 4): el rango seleccionado ES el rango de
+          índices, sin transformación. Click en punto abre la ficha técnica. */}
+      {openChart === "coding-vs-agentic" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Coding Index vs Agentic Index"
+          subtitle="X = Coding Index · Y = Agentic Index · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
+          chartId="coding-vs-agentic"
+          data={codingAgenticData}
+          models={data.models}
+          defaultXDomain={[30, 80]}
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          renderChart={(ctx) => (
+            <ScatterChart
+              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+            >
+              <CartesianGrid
+                stroke="var(--border-default)"
+                strokeDasharray="3 3"
+              />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Coding Index"
+                domain={ctx.xDomain}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                label={{
+                  value: "Coding Index",
+                  position: "insideBottom",
+                  offset: -10,
+                  fill: "var(--text-secondary)",
+                  fontSize: 11,
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="Agentic Index"
+                domain={[20, 70]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                width={30}
+              />
+              <ZAxis
+                type="number"
+                dataKey="z"
+                range={[14, 110]}
+              />
+              <RechartsTooltip
+                cursor={{
+                  strokeDasharray: "3 3",
+                  stroke: "var(--border-strong)",
+                }}
+                isAnimationActive={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as any;
+                  return (
+                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                      <div className="font-semibold text-[var(--text-primary)] mb-1">
+                        {d.name}
+                      </div>
+                      <div className="text-[var(--text-secondary)] space-y-0.5">
+                        <div>
+                          Coding Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.x}
+                          </span>
+                        </div>
+                        <div>
+                          Agentic Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Scatter
+                data={codingAgenticData}
+                isAnimationActive={false}
+              >
+                {codingAgenticData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.color}
+                    fillOpacity={getPointOpacity(entry.provider)}
+                    stroke={entry.color}
+                    strokeOpacity={getPointOpacity(entry.provider)}
+                    onClick={() => ctx.onPointClick(entry.id)}
+                    style={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          )}
+        />
+      )}
+
+      {/* Modal expandido: Eficiencia (Velocidad vs Precio). scale="log" nativo
+          con Brush sobre valores reales blendedPrice (design.md sección 4,
+          spec: zoom en el espacio de datos real): el rango seleccionado son
+          precios reales (p. ej. $0.3–$15) y Recharts aplica la escala log
+          VISUAL después, sin distorsión. Click en punto abre la ficha. */}
+      {openChart === "eficiencia" && (
+        <ChartExpandDialog
+          open
+          onClose={() => setOpenChart(null)}
+          title="Eficiencia (Velocidad vs Precio)"
+          subtitle="X = precio blended USD/M (log) · Y = velocidad (tok/s) · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
+          chartId="eficiencia"
+          data={efficiencyData}
+          models={data.models}
+          defaultXDomain={["auto", "auto"]}
+          activeProviders={activeProviders}
+          onToggle={toggleProvider}
+          renderChart={(ctx) => (
+            <ScatterChart
+              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+            >
+              <CartesianGrid
+                stroke="var(--border-default)"
+                strokeDasharray="3 3"
+              />
+              <XAxis
+                type="number"
+                dataKey="x"
+                name="Precio por Millón de Tokens ($)"
+                scale="log"
+                domain={ctx.xDomain}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                tickFormatter={(v) => `$${v}`}
+                label={{
+                  value: "Blended Price USD",
+                  position: "insideBottom",
+                  offset: -10,
+                  fill: "var(--text-secondary)",
+                  fontSize: 11,
+                }}
+              />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="Velocidad (TPS)"
+                domain={[0, "auto"]}
+                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "var(--border-default)" }}
+                width={30}
+              />
+              <ZAxis
+                type="number"
+                dataKey="z"
+                range={[14, 110]}
+              />
+              <RechartsTooltip
+                cursor={{
+                  strokeDasharray: "3 3",
+                  stroke: "var(--border-strong)",
+                }}
+                isAnimationActive={false}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload as any;
+                  return (
+                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[220px]">
+                      <div className="font-semibold text-[var(--text-primary)] mb-1">
+                        {d.name}
+                      </div>
+                      <div className="text-[var(--text-secondary)] space-y-0.5">
+                        <div>
+                          Costo Blended:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            ${d.x.toFixed(2)}/M
+                          </span>
+                        </div>
+                        <div>
+                          Velocidad:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y} TPS
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Scatter
+                data={efficiencyData}
+                isAnimationActive={false}
+              >
+                {efficiencyData.map((entry, i) => (
+                  <Cell
+                    key={i}
+                    fill={entry.color}
+                    fillOpacity={getPointOpacity(entry.provider)}
+                    stroke={entry.color}
+                    strokeOpacity={getPointOpacity(entry.provider)}
+                    onClick={() => ctx.onPointClick(entry.id)}
+                    style={{ cursor: "pointer" }}
+                  />
+                ))}
+              </Scatter>
+            </ScatterChart>
+          )}
+        />
+      )}
     </div>
   );
 }
