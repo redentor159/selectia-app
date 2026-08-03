@@ -102,8 +102,8 @@ export function GerenteView() {
       .map((m) => {
         const blended = computeBlendedUsd(m) || 0.01;
         return {
-          x: m.intelligenceIndex,
-          y: Math.log10(blended), // pre-compute log10 — Recharts log scale is buggy
+          x: Math.log10(blended), // pre-compute log10 — Recharts log scale is buggy
+          y: m.intelligenceIndex,
           rawPrice: blended,
           z: m.speedTps ?? 50,
           name: m.name,
@@ -216,7 +216,8 @@ export function GerenteView() {
               Inteligencia vs Precio
             </CardTitle>
             <CardDescription className="text-xs">
-              Cada punto es un modelo · tamaño = velocidad
+              Cada punto = modelo · X = precio USD/M (log) · Y = inteligencia ·
+              tamaño = velocidad (tok/s) · ↑← = barato e inteligente → mejor valor
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -226,22 +227,6 @@ export function GerenteView() {
                 <XAxis
                   type="number"
                   dataKey="x"
-                  name="Intelligence Index"
-                  domain={[20, 60]}
-                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--border-default)" }}
-                  label={{
-                    value: "Intelligence Index",
-                    position: "insideBottom",
-                    offset: -10,
-                    fill: "var(--text-secondary)",
-                    fontSize: 11,
-                  }}
-                />
-                <YAxis
-                  type="number"
-                  dataKey="y"
                   name="Precio USD/M (log10)"
                   domain={[-2, 2.5]}
                   ticks={[-2, -1, 0, 1, 2]}
@@ -254,7 +239,23 @@ export function GerenteView() {
                     if (real >= 1) return `$${real.toFixed(0)}`;
                     return real.toFixed(2);
                   }}
-                  width={48}
+                  label={{
+                    value: "Precio USD/M (log)",
+                    position: "insideBottom",
+                    offset: -10,
+                    fill: "var(--text-secondary)",
+                    fontSize: 11,
+                  }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="y"
+                  name="Intelligence Index"
+                  domain={[20, 60]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  width={40}
                 />
                 <ZAxis type="number" dataKey="z" range={[10, 80]} />
                 <RechartsTooltip
@@ -269,7 +270,7 @@ export function GerenteView() {
                           {d.name}
                         </div>
                         <div className="text-[var(--text-secondary)] space-y-0.5">
-                          <div>II: <span className="num text-[var(--text-primary)]">{d.x}</span></div>
+                          <div>II: <span className="num text-[var(--text-primary)]">{d.y}</span></div>
                           <div>Blended: <span className="num text-[var(--text-primary)]">${d.rawPrice.toFixed(2)}/M</span></div>
                         </div>
                       </div>

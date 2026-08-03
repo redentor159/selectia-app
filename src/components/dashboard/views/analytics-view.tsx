@@ -640,7 +640,8 @@ export function AnalyticsView() {
               Evolución de Inteligencia
             </CardTitle>
             <CardDescription className="text-xs mt-1">
-              Máximo II alcanzado por proveedor · desde releaseDate
+              Máximo II por proveedor · línea más alta = más inteligente · desde
+              releaseDate
             </CardDescription>
           </div>
           <select
@@ -773,7 +774,8 @@ export function AnalyticsView() {
                   </span>
                 </CardTitle>
                 <CardDescription className="text-xs mt-1">
-                  Índice base marzo 2023 = 100 · {data.priceIndex.length} meses
+                  Base mar 2023 = 100 · caída = más barato ·{" "}
+                  {data.priceIndex.length} meses
                 </CardDescription>
               </div>
             </div>
@@ -916,7 +918,8 @@ export function AnalyticsView() {
             Open Weights vs Propietario
           </CardTitle>
           <CardDescription className="text-xs">
-            Distribución de modelos por tipo de licencia según proveedor.
+            Por proveedor: cuántos modelos son open weights vs propietario ·
+            barra completa = 100%
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1010,8 +1013,8 @@ export function AnalyticsView() {
               Velocidad vs Ventana de Contexto
             </CardTitle>
             <CardDescription className="text-xs">
-              Relación entre el límite máximo de tokens (x) y la velocidad de
-              inferencia (y).
+              X = contexto (log) · Y = velocidad (tok/s) · tamaño = Intelligence
+              Index · ↑→ = mucho contexto Y rápido → ideal para agentes
             </CardDescription>
             <ScatterProviderLegend
               data={contextSpeedData}
@@ -1066,7 +1069,7 @@ export function AnalyticsView() {
                 <ZAxis
                   type="number"
                   dataKey="z"
-                  range={[10, 80]}
+                  range={[14, 110]}
                 />
                 <RechartsTooltip
                   cursor={{
@@ -1135,8 +1138,8 @@ export function AnalyticsView() {
               Coding Index vs Agentic Index
             </CardTitle>
             <CardDescription className="text-xs">
-              Comparativa de capacidades de programación (x) y razonamiento
-              autónomo (y).
+              X = Coding Index · Y = Agentic Index · tamaño = Intelligence Index ·
+              ↑→ = programa bien Y razona autónomo → top para agentes de código
             </CardDescription>
             <ScatterProviderLegend
               data={codingAgenticData}
@@ -1182,7 +1185,7 @@ export function AnalyticsView() {
                 <ZAxis
                   type="number"
                   dataKey="z"
-                  range={[10, 80]}
+                  range={[14, 110]}
                 />
                 <RechartsTooltip
                   cursor={{
@@ -1245,8 +1248,8 @@ export function AnalyticsView() {
             Eficiencia (Velocidad vs Precio)
           </CardTitle>
           <CardDescription className="text-xs">
-            Relación entre el costo por millón de tokens (x) y la velocidad de
-            inferencia (y).
+            X = precio blended USD/M (log) · Y = velocidad (tok/s) · tamaño =
+            Intelligence Index · ↑← = rápido y barato → mejor eficiencia
           </CardDescription>
           <ScatterProviderLegend
             data={efficiencyData}
@@ -1294,7 +1297,7 @@ export function AnalyticsView() {
               <ZAxis
                 type="number"
                 dataKey="z"
-                range={[10, 80]}
+                range={[14, 110]}
               />
               <RechartsTooltip
                 cursor={{
@@ -1357,8 +1360,8 @@ export function AnalyticsView() {
             Distribución de licencias por proveedor
           </CardTitle>
           <CardDescription className="text-xs">
-            Stack 100% · qué porcentaje de cada proveedor es comercial /
-            condicional / pago
+            100% apilado por proveedor · proporción de licencias open / condicional
+            / pago
           </CardDescription>
         </CardHeader>
         <CardContent>
