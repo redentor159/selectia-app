@@ -1687,6 +1687,11 @@ function applyOpenRouterEnrichment(
         openWeights,
         ollamaAvailable: openWeights,
         active: orCandidate.expiration_date ? false : true,
+        // HuggingFace repo: para que los modelos insertados por upsert puntual
+        // puedan mostrar la ficha técnica HF (downloads, likes, parámetros).
+        // El match AA↔OR normal usa or.hugging_face_id en la línea 1501-1502;
+        // el upsert puntual no pasa por esa rama, así que lo seteamos directo.
+        hfRepoId: orCandidate.hugging_face_id ?? null,
         orModelId: orCandidate.id ?? null,
         orCanonicalSlug: orCandidate.canonical_slug ?? null,
         orName: orCandidate.name ?? null,
