@@ -36,6 +36,15 @@ export interface ChartDialogContext {
   onPointClick: (modelId: string) => void;
   activeProviders: string[];
   onToggleProvider: (p: string) => void;
+  /**
+   * true cuando hay zoom aplicado. Las vistas lo pasan al XAxis como
+   * allowDataOverflow={ctx.allowDataOverflow}: Recharts por defecto IGNORA
+   * el `domain` si hay puntos fuera y expande el eje para mostrarlos todos.
+   * Con allowDataOverflow=true los puntos fuera del dominio se recortan
+   * visualmente. Necesario en ScatterChart; en LineChart (timeline) no
+   * hace nada porque filtramos los datos por indices (no quedan puntos fuera).
+   */
+  allowDataOverflow: boolean;
 }
 
 /** Resolucion temporal del timeline (mismo conjunto de valores que AnalyticsView). */
@@ -196,8 +205,9 @@ export function ChartExpandDialog({
       onPointClick: (modelId: string) => setFichaModelId(modelId),
       activeProviders,
       onToggleProvider: onToggle,
+      allowDataOverflow: isZoomed,
     }),
-    [xDomain, windowStart, windowEnd, activeProviders, onToggle]
+    [xDomain, windowStart, windowEnd, activeProviders, onToggle, isZoomed]
   );
 
   // Leyenda: explicita si viene, sino derivada de data (par provider + color)

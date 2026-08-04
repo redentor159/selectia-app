@@ -1882,6 +1882,7 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Context Window (log2)"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowDataOverflow}
                 ticks={[13, 15, 17, 19, 21]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -2006,6 +2007,7 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Coding Index"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowDataOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -2117,6 +2119,7 @@ export function AnalyticsView() {
                 name="Precio por Millón de Tokens ($)"
                 scale="log"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowDataOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
