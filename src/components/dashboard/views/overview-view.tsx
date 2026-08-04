@@ -831,10 +831,11 @@ function IngenieroOverview() {
           data={scatterData}
           models={data.models}
           defaultXDomain={[-2, 2.5]}
+          xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }} onMouseDown={ctx.onMouseDown} onMouseMove={ctx.onMouseMove} onMouseUp={ctx.onMouseUp}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
@@ -903,7 +904,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -921,10 +922,11 @@ function IngenieroOverview() {
           data={adoptionData}
           models={data.models}
           defaultXDomain={[2, 7]}
+          xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }} onMouseDown={ctx.onMouseDown} onMouseMove={ctx.onMouseMove} onMouseUp={ctx.onMouseUp}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
@@ -985,7 +987,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />

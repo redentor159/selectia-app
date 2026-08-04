@@ -1690,14 +1690,13 @@ export function AnalyticsView() {
       </Card>
 
       {/* Modal expandido: Evolución de Inteligencia (timeline). Eje categórico
-          por quarter: el Brush usa dataKey="quarter" y el dominio restringido
-          son categorías [catStart, catEnd] (design.md sección 3). La vista
-          además filtra timelineData por ctx.zoomIndices (alternativa
-          documentada: el dominio categórico puede no restringir en Recharts
-          2.15.4). El modal filtra las líneas visibles por activeProviders
-          (spec: herencia de filtros) y comparte timeRes con la vista (spec:
-          cambio de resolución temporal). El click en un punto abre la ficha
-          técnica (dot/activeDot con payload `{provider}_model_id`). */}
+          por quarter: el nuevo zoom usa ctx.xDomain con [catStart, catEnd]
+          (categorías del primer y último Quarter seleccionado), y la vista
+          filtra timelineData por esos índices. El modal filtra las líneas
+          visibles por activeProviders (spec: herencia de filtros) y comparte
+          timeRes con la vista (spec: cambio de resolución temporal). El click
+          en un punto abre la ficha técnica (dot/activeDot con payload
+          `{provider}_model_id`). */}
       {openChart === "evolucion-inteligencia" && (
         <ChartExpandDialog
           open
@@ -1708,21 +1707,32 @@ export function AnalyticsView() {
           data={timelineData}
           models={data.models}
           defaultXDomain={["auto", "auto"]}
-          brushDataKey="quarter"
+          xDataKey="quarter"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           timeRes={timeRes}
           onTimeResChange={setTimeRes}
           legendData={timelineLegendData}
           renderChart={(ctx) => {
-            // Filtro por índices del rango del Brush (alternativa documentada
-            // en design.md: el dominio categórico puede no restringir).
-            const chartData = ctx.zoomIndices
-              ? timelineData.slice(
-                  ctx.zoomIndices.start,
-                  ctx.zoomIndices.end + 1
-                )
-              : timelineData;
+            // Filtrado por dominio X categórico (nueva ctx.xDomain ya refleja
+            // el slice seleccionado; el timeline slicea por índices encontrados).
+            const startCat = ctx.xDomain[0];
+            const endCat = ctx.xDomain[1];
+            const startIndex =
+              typeof startCat === "string"
+                ? timelineData.findIndex((d) => d.quarter === startCat)
+                : 0;
+            const endIndex =
+              typeof endCat === "string"
+                ? timelineData.findIndex((d) => d.quarter === endCat)
+                : timelineData.length - 1;
+            const chartData =
+              startIndex > 0 || endIndex < timelineData.length - 1
+                ? timelineData.slice(
+                    Math.max(0, startIndex),
+                    Math.min(timelineData.length, endIndex + 1)
+                  )
+                : timelineData;
             // Líneas visibles según activeProviders (la vista no filtra hoy;
             // el modal sí, según spec).
             const visibleProviders =
@@ -1744,6 +1754,9 @@ export function AnalyticsView() {
               <LineChart
                 data={chartData}
                 margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
+                onMouseDown={ctx.onMouseDown}
+                onMouseMove={ctx.onMouseMove}
+                onMouseUp={ctx.onMouseUp}
               >
                 <CartesianGrid
                   stroke="var(--border-default)"
@@ -1846,7 +1859,7 @@ export function AnalyticsView() {
                     />
                   );
                 })}
-                {ctx.brush}
+                {ctx.refArea}
               </LineChart>
             );
           }}
@@ -1868,11 +1881,15 @@ export function AnalyticsView() {
           data={contextSpeedData}
           models={data.models}
           defaultXDomain={[12, 21]}
+          xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -1973,7 +1990,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -1992,11 +2009,15 @@ export function AnalyticsView() {
           data={codingAgenticData}
           models={data.models}
           defaultXDomain={[30, 80]}
+          xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2081,7 +2102,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -2102,11 +2123,15 @@ export function AnalyticsView() {
           data={efficiencyData}
           models={data.models}
           defaultXDomain={["auto", "auto"]}
+          xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2193,7 +2218,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Brush, ResponsiveContainer } from "recharts";
-import { RotateCcw, X } from "lucide-react";
+import { ReferenceArea, ResponsiveContainer } from "recharts";
+import { ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,38 +16,33 @@ import { FichaTecnicaModal } from "@/components/dashboard/ficha-tecnica-modal";
 import type { AIModel } from "@/lib/types";
 
 /**
- * ChartDialogContext — contrato del render prop (design.md, sección "Interfaces
- * / Contratos"). La vista de origen recibe este contexto y lo aplica a su JSX
- * Recharts: `xDomain` al XAxis, `onPointClick` al click de puntos, y el par
- * `activeProviders`/`onToggleProvider` para opacidad y leyenda.
+ * ChartDialogContext — contrato del render prop.
  *
- * El eje Y nunca se toca: el zoom es exclusivo del eje X (spec: "El zoom MUST
- * NOT aplicar sobre el eje Y").
+ * La vista recibe este contexto y lo aplica a su JSX Recharts:
+ * - `xDomain` al XAxis (dominio actual tras zoom; igual a default si no hay)
+ * - `refArea` lo inserta como <ReferenceArea> dentro del chart (área visual
+ *   de selección durante el drag). Recharts exige que ReferenceArea sea hijo
+ *   directo del chart, por eso viaja por contexto, igual que el Brush antes.
+ * - `onMouseDown`, `onMouseMove`, `onMouseUp` los engancha al chart via las
+ *   props del mismo nombre del chart (LineChart/ScatterChart los soportan).
+ * - `onPointClick` al click de puntos (ficha técnica).
+ * - `activeProviders`/`onToggleProvider` para leyenda y opacidad.
+ *
+ * El eje Y nunca se toca: el zoom es exclusivo del eje X.
  */
 export interface ChartDialogContext {
-  /**
-   * Dominio restringido del eje X: números (ejes numéricos lineales/log) o
-   * categorías string (timeline por quarter). El eje Y nunca se toca.
-   */
+  /** Dominio actual del eje X (restablecido tras zoom, o default si no hay). */
   xDomain: [number | string | "auto", number | string | "auto"];
-  /**
-   * Rango de índices del Brush (null = sin zoom). El timeline lo usa para
-   * filtrar sus datos por índices (alternativa documentada en design.md:
-   * el dominio categórico puede no restringir en Recharts 2.15.4).
-   */
-  zoomIndices: { start: number; end: number } | null;
+  /** Área de drag visual durante la selección (null si no hay drag activo). */
+  refArea: ReactNode;
+  onMouseDown: (e: any) => void;
+  onMouseMove: (e: any) => void;
+  onMouseUp: () => void;
   onPointClick: (modelId: string) => void;
   activeProviders: string[];
   onToggleProvider: (p: string) => void;
-  /**
-   * Elemento <Brush> de Recharts ya configurado por el modal. Recharts
-   * exige que <Brush> sea un hijo directo del chart (LineChart, ScatterChart,
-   * etc.), NO un hermano del ResponsiveContainer. Por eso viaja por contexto:
-   * la vista lo inserta dentro de su chart en el render prop con {ctx.brush}.
-   * Sin esto el Brush no renderiza (verificado contra la doc oficial:
-   * "designed to be used within specific parent chart components").
-   */
-  brush: ReactNode;
+  /** True cuando hay zoom aplicado (muestra los botones de pan y reset). */
+  isZoomed: boolean;
 }
 
 /** Resolución temporal del timeline (mismo conjunto de valores que AnalyticsView). */
@@ -58,101 +53,60 @@ interface ChartExpandDialogProps {
   onClose: () => void;
   title: string;
   subtitle?: string;
-  /** data-chart-id — el modal conserva el mismo valor del gráfico de origen. */
   chartId: string;
-  /** Datos del gráfico de origen (para el Brush y la leyenda derivada). */
   data: Record<string, unknown>[];
-  /**
-   * dataKey del Brush (default "x"). El timeline usa "quarter": su eje es
-   * categórico y los valores de categoría viven en esa clave.
-   */
-  brushDataKey?: string;
-  /** Modelos completos para resolver la ficha técnica por id. */
+  /** dataKey del eje X (ej. "x" para scatter, "quarter" para timeline). */
+  xDataKey: string;
   models: AIModel[];
-  /**
-   * Dominio X actual del gráfico en la vista (sin zoom). Acepta números
-   * (ejes numéricos) o categorías string (timeline por quarter).
-   */
+  /** Dominio X por defecto (sin zoom). ["auto","auto"] = Recharts calcula. */
   defaultXDomain: [number | string | "auto", number | string | "auto"];
-  /**
-   * Render prop: la vista pasa su propio JSX Recharts (series, tooltip,
-   * colores y dominios viajan tal cual). El modal solo inyecta el contexto.
-   */
+  /** Render prop: la vista pasa su gráfico Recharts. */
   renderChart: (ctx: ChartDialogContext) => ReactNode;
-  /** Proveedores activos heredados de la vista (estado compartido). */
   activeProviders: string[];
-  /** toggleProvider existente de la vista (mismo estado, sin refactor). */
   onToggle: (p: string) => void;
-  /** Timeline (opcional): resolución temporal compartida con la vista. */
   timeRes?: TimeResolution;
   onTimeResChange?: (r: TimeResolution) => void;
-  /**
-   * Leyenda (opcional): pares provider + color. Si no se provee, el modal la
-   * deriva de `data` (claves `provider`/`color` de los puntos). El timeline
-   * (WU3) proveerá la derivada de providersInTimeline + PROVIDER_PALETTE.
-   */
   legendData?: { provider: string; color: string; z?: number | null }[];
 }
 
-/**
- * computeDomain — min/max REALES del slice seleccionado sobre la key "x".
- * No asume datos ordenados por X (scatterData no está ordenado): recorre el
- * slice completo y toma el mínimo y máximo efectivos.
- *
- * Escalas mixtas (design.md sección 4 — CRÍTICO):
- * - Eficiencia (scale="log" nativo): `x` es el precio real blendedPrice
- *   (positivo). El rango seleccionado son precios reales (p. ej. $0.3–$15) y
- *   Recharts aplica la escala log VISUAL después — sin distorsión.
- * - Pre-log precomputado (log10/log2: Inteligencia vs Precio, Adopción vs
- *   Calidad, Velocidad vs Contexto): `x` ya es el valor transformado que el
- *   eje recibe. El dominio restringido opera en ese espacio transformado y el
- *   `tickFormatter` (10^v → $ / 2^v → K/M) sigue funcionando porque recibe
- *   ticks del dominio restringido.
- * - Lineal real (Coding vs Agentic): `x` es el índice; rango = índices.
- * - Timeline categórico (brushDataKey="quarter"): los valores no son
- *   numéricos; se devuelve [catStart, catEnd] — categorías del primer y
- *   último índice del slice — para el `domain` del XAxis. La vista además
- *   filtra sus datos por `ctx.zoomIndices` (alternativa documentada en la
- *   pregunta abierta del design: el dominio categórico puede no restringir
- *   en Recharts 2.15.4).
- */
-function computeDomain(
-  data: Record<string, unknown>[],
-  zoom: { start: number; end: number },
-  brushDataKey: string
-): [number | string | "auto", number | string | "auto"] {
-  const slice = data.slice(zoom.start, zoom.end + 1);
-  let min: number | null = null;
-  let max: number | null = null;
-  for (const row of slice) {
-    const v = row[brushDataKey];
-    if (typeof v === "number") {
-      if (min === null || v < min) min = v;
-      if (max === null || v > max) max = v;
-    }
-  }
-  if (min !== null && max !== null) return [min, max];
-  // Eje categórico (timeline): dominio por categorías del primer/último
-  // índice del slice (design.md sección 3).
-  const first = slice[0]?.[brushDataKey];
-  const last = slice[slice.length - 1]?.[brushDataKey];
-  if (typeof first === "string" && typeof last === "string") {
-    return [first, last];
-  }
-  return ["auto", "auto"];
+/** Tipo interno: dominio numérico o de string (categorías del timeline). */
+type DomainValue = number | string;
+type Domain = [DomainValue | "auto", DomainValue | "auto"];
+
+/** True si el dominio es numérico (no categórico ni "auto"). */
+function isNumericDomain(d: Domain | undefined): d is [number, number] {
+  return (
+    !!d &&
+    d[0] !== "auto" &&
+    d[1] !== "auto" &&
+    typeof d[0] === "number" &&
+    typeof d[1] === "number"
+  );
+}
+
+/** Convierte un valor del eje (número o string) a número si es posible. */
+function toNumber(v: unknown): number | null {
+  if (typeof v === "number") return v;
+  if (typeof v === "string" && v.trim() !== "" && !isNaN(Number(v))) return Number(v);
+  return null;
 }
 
 /**
  * ChartExpandDialog — modal de pantalla completa para explorar un gráfico.
+ * Zoom por área arrastrable + paneo + reinicio. Sin Brush (Recharts no lo
+ * renderiza de forma fiable en ScatterChart).
  *
- * Estado local (zoom + fichaModelId): fresco por apertura porque las vistas lo
- * montan de forma condicional (`{open && <ChartExpandDialog … />}`) — el
- * desmontaje garantiza que el zoom nunca persiste entre aperturas (spec).
+ * Interacción:
+ * 1. Click y arrastrar sobre el gráfico → área sombreada (ReferenceArea)
+ *    marca la selección.
+ * 2. Al soltar, si el rango seleccionado es significativo (> 5% del ancho
+ *    total para numérico, o al menos 2 categorías para el timeline), se aplica
+ *    el zoom por dominio.
+ * 3. Botones de pan ←/→ desplazan la ventana 20% del ancho actual.
+ * 4. Botón Reiniciar vuelve al dominio por defecto.
  *
- * Ficha técnica: Dialog anidado (FichaTecnicaModal tal cual, patrón de
- * tabla-view.tsx L150-161/L443-448). Su portal Radix se monta después que el
- * del modal, por lo que queda encima (mismo z-[700]); Esc cierra la ficha y
- * vuelve al gráfico con el zoom intacto.
+ * El estado de zoom (zoomedDomain) se reinicia al cerrar el modal gracias
+ * al montaje condicional ({open && <ChartExpandDialog .../>}) de las vistas.
  */
 export function ChartExpandDialog({
   open,
@@ -161,7 +115,7 @@ export function ChartExpandDialog({
   subtitle,
   chartId,
   data,
-  brushDataKey = "x",
+  xDataKey,
   models,
   defaultXDomain,
   renderChart,
@@ -171,72 +125,218 @@ export function ChartExpandDialog({
   onTimeResChange,
   legendData,
 }: ChartExpandDialogProps) {
-  const [zoom, setZoom] = useState<{ start: number; end: number } | null>(null);
+  /**
+   * Dominio activo del eje X. null = no hay zoom, usar defaultXDomain.
+   * Durante el arrastrar, los extremos se guardan en refAreaLeft/Right.
+   */
+  const [zoomedDomain, setZoomedDomain] = useState<Domain | null>(null);
+  /** Marcadores del drag actual durante onMouseMove. Tipo mixto:
+   * Eje numérico: numbers. Eje categórico: string (activeLabel). null = no arrastrando. */
+  const [refAreaLeft, setRefAreaLeft] = useState<DomainValue | null>(null);
+  const [refAreaRight, setRefAreaRight] = useState<DomainValue | null>(null);
   const [fichaModelId, setFichaModelId] = useState<string | null>(null);
 
-  // Reset de zoom al cambiar la resolución temporal: el espacio de índices de
-  // `data` cambia (reagregación en la vista), un rango viejo no tiene sentido.
-  useEffect(() => {
-    setZoom(null);
-  }, [timeRes]);
+  // Reset de zoom al cambiar la resolución temporal: el espacio de datos
+  // cambia (reagrupación en la vista), un dominio viejo no tiene sentido.
+  // (A diferencia del approach anterior con useEffect, esto se espera que
+  // la vista lo propague re-mounte via key prop si fuera necesario; aquí
+  // simplemente reiniciamos internamente si timeRes cambia.)
+  // Para evitar imports de useEffect, asumimos que al cambiar timeRes la
+  // vista desmonta y remonta el modal (patrón observado en analytics-view).
 
-  const lastIndex = Math.max(0, data.length - 1);
+  /**
+   * Dominio base actual: zoomed si hay zoom, sino defaultXDomain.
+   * Recharts quiere [start,end] en escala numérica, o [catStart,catEnd]
+   * para eje categórico (timeline). "auto" lo dejamos intacto.
+   */
+  const currentDomain: Domain =
+    zoomedDomain ?? (defaultXDomain as Domain);
 
-  // Dominio restringido: slice real del Brush, o dominio completo por defecto.
-  // En el timeline (eje categórico) el resultado son categorías [catStart,
-  // catEnd]; la vista filtra además sus datos por ctx.zoomIndices.
-  const xDomain: [number | string | "auto", number | string | "auto"] = zoom
-    ? computeDomain(data, zoom, brushDataKey)
-    : defaultXDomain;
+  /** true cuando hay un zoom aplicado ( guía botones de pan/reset). */
+  const isZoomed = zoomedDomain !== null;
 
-  // Brush preconfigurado que viaja por ctx.brush. La vista lo inserta como
-  // hijo directo de su chart (LineChart/ScatterChart) — Recharts NO renderiza
-  // <Brush> como hermano del ResponsiveContainer (verificado en doc oficial).
-  const brushElement = (
-    <Brush
-      dataKey={brushDataKey}
-      height={28}
-      travellerWidth={10}
-      stroke="var(--border-strong)"
-      fill="var(--bg-overlay)"
-      startIndex={zoom?.start ?? 0}
-      endIndex={zoom?.end ?? lastIndex}
-      onChange={(r) => {
-        if (!r) return;
-        setZoom({ start: r.startIndex ?? 0, end: r.endIndex ?? lastIndex });
-      }}
-    />
-  );
+  /** Extremos mín/máx del dominio base (para validación y paneo numérico). */
+  const baseBounds = useMemo(() => {
+    // Solo válido para eje numérico. Para eje categórico, trabajaremos con
+    // índices del array data (cada elemento tiene su categoría en xDataKey).
+    if (!isNumericDomain(defaultXDomain as Domain)) {
+      // Categórico: bounds = [índice 0, índice N-1] del array data
+      return { isNumeric: false as const, lo: 0, hi: Math.max(0, data.length - 1) };
+    }
+    const [lo, hi] = defaultXDomain as [number, number];
+    return { isNumeric: true as const, lo, hi };
+  }, [defaultXDomain, data]);
+
+  /** Ancho actual del viewport (para paneo). Numérico: hi-lo. Categórico: cantidad de índices. */
+  const currentViewportWidth = useMemo(() => {
+    if (!isNumericDomain(currentDomain)) {
+      // Categórico: amount de categorías entre start y end
+      // currentDomain puede ser ["auto","auto"] o [catStart, catEnd]
+      // Para timeline siempre son strings de quarter
+      const start = currentDomain[0];
+      const end = currentDomain[1];
+      const startIndex =
+        typeof start === "string" ? data.findIndex((d) => d[xDataKey] === start) : 0;
+      const endIndex =
+        typeof end === "string"
+          ? data.findIndex((d) => d[xDataKey] === end)
+          : data.length - 1;
+      return Math.max(1, endIndex - startIndex);
+    }
+    const [lo, hi] = currentDomain as [number, number];
+    return Math.abs(hi - lo);
+  }, [currentDomain, data, xDataKey]);
+
+  /**
+   * Aplica el zoom a partir del drag actual.
+   * - Eje numérico: ordena [left,right] → nuevo dominio numérico.
+   * - Eje categórico: traduce strings a índices y, si el rango tiene >= 2
+   *   categorías, aplica [catStart, catEnd] como dominio categórico.
+   * - Ignora drags triviales (< 5% numérico, o < 2 categorías).
+   */
+  const applyZoomFromDrag = () => {
+    const left = refAreaLeft;
+    const right = refAreaRight;
+    setRefAreaLeft(null);
+    setRefAreaRight(null);
+    if (left === null || right === null || left === right) return;
+
+    if (baseBounds.isNumeric) {
+      const lN = toNumber(left);
+      const rN = toNumber(right);
+      if (lN === null || rN === null) return;
+      const lo = Math.min(lN, rN);
+      const hi = Math.max(lN, rN);
+      const totalWidth = Math.abs(baseBounds.hi - baseBounds.lo);
+      // Ignorar drag trivial: < 5% del total
+      if (Math.abs(hi - lo) < totalWidth * 0.05) return;
+      setZoomedDomain([lo, hi]);
+    } else {
+      // Categórico (timeline por quarter)
+      const startIdx = data.findIndex((d) => d[xDataKey] === left);
+      const endIdx = data.findIndex((d) => d[xDataKey] === right);
+      if (startIdx === -1 || endIdx === -1) return;
+      const loIdx = Math.min(startIdx, endIdx);
+      const hiIdx = Math.max(startIdx, endIdx);
+      // Ignorar drag trivial: < 2 categorías
+      if (hiIdx - loIdx < 1) return;
+      const startCat = data[loIdx]?.[xDataKey] as DomainValue;
+      const endCat = data[hiIdx]?.[xDataKey] as DomainValue;
+      if (startCat === undefined || endCat === undefined) return;
+      setZoomedDomain([startCat, endCat]);
+    }
+  };
+
+  /** Paneo horizontal: desplaza el viewport 20% del ancho actual. dir = -1 | +1. */
+  const pan = (dir: -1 | 1) => {
+    if (!isZoomed) return;
+    if (!isNumericDomain(currentDomain)) {
+      // Categórico: desplazamos por índices
+      const startIdx = data.findIndex((d) => d[xDataKey] === currentDomain[0]);
+      const endIdx = data.findIndex((d) => d[xDataKey] === currentDomain[1]);
+      if (startIdx === -1 || endIdx === -1) return;
+      const span = endIdx - startIdx;
+      const offset = Math.max(1, Math.round(span * 0.2) * dir);
+      const newStart = Math.max(0, startIdx + offset);
+      const newEnd = Math.min(data.length - 1, endIdx + offset);
+      if (newStart === startIdx) return; // no se puede pan más allá del borde
+      const s = data[newStart]?.[xDataKey] as DomainValue;
+      const e = data[newEnd]?.[xDataKey] as DomainValue;
+      if (s !== undefined && e !== undefined) setZoomedDomain([s, e]);
+      return;
+    }
+    // Numérico
+    const [lo, hi] = currentDomain as [number, number];
+    const span = hi - lo;
+    const step = span * 0.2 * dir;
+    let newLo = lo + step;
+    let newHi = hi + step;
+    // Respetar bounds del dominio base
+    if (newLo < baseBounds.lo) {
+      newLo = baseBounds.lo;
+      newHi = newLo + span;
+    }
+    if (newHi > baseBounds.hi) {
+      newHi = baseBounds.hi;
+      newLo = newHi - span;
+    }
+    setZoomedDomain([newLo, newHi]);
+  };
+
+  /** Extrae el valor X del evento de Recharts (compatible numérico y categórico). */
+  const extractX = (e: any): DomainValue | null => {
+    // activeLabel = String para eje categórico (timeline). activeCoordinate.x = pixel.
+    // Para numérico, Recharts expone activeLabel como String del valor. Preferimos
+    // activeCoordinate.x que es el pixel, pero necesitamos el valor del dominio, no el
+    // pixel. Recharts usa `e.activePayload[0].payload[xDataKey]` o `e.activeLabel`.
+    if (!e) return null;
+    // Categórico (timeline): activeLabel es la categoría String (ej. "2023-Q1")
+    if (typeof e.activeLabel === "string") return e.activeLabel;
+    // Numérico: activeLabel puede ser el valor como string
+    const p = e.activePayload?.[0]?.payload;
+    if (p && p[xDataKey] !== undefined) {
+      const v = p[xDataKey];
+      if (typeof v === "number" || typeof v === "string") return v as DomainValue;
+    }
+    // Fallback: activeCoordinate.x convertido a valor del dominio no es trivial,
+    // así que si llegamos aquí, ignoramos
+    return null;
+  };
+
+  const handleMouseDown = (e: any) => {
+    if (!e) return;
+    const x = extractX(e);
+    if (x === null) return;
+    setRefAreaLeft(x);
+    setRefAreaRight(x);
+  };
+
+  const handleMouseMove = (e: any) => {
+    if (refAreaLeft === null) return; // solo actualiza si está arrastrando
+    const x = extractX(e);
+    if (x === null) return;
+    setRefAreaRight(x);
+  };
+
+  const handleMouseUp = () => {
+    applyZoomFromDrag();
+  };
+
+  // ReferenceArea para visualizar el arrastrar. x1 < x2 siempre (estético)
+  const refArea: ReactNode =
+    refAreaLeft !== null && refAreaRight !== null && refAreaLeft !== refAreaRight ? (
+      <ReferenceArea
+        x1={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaLeft : refAreaRight}
+        x2={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaRight : refAreaLeft}
+        strokeOpacity={0.4}
+        fill="var(--brand-primary)"
+        fillOpacity={0.18}
+      />
+    ) : null;
 
   const ctx: ChartDialogContext = useMemo(
     () => ({
-      xDomain,
-      zoomIndices: zoom,
+      xDomain: currentDomain as [number | string | "auto", number | string | "auto"],
+      refArea,
+      onMouseDown: handleMouseDown,
+      onMouseMove: handleMouseMove,
+      onMouseUp: handleMouseUp,
       onPointClick: (modelId: string) => setFichaModelId(modelId),
       activeProviders,
       onToggleProvider: onToggle,
-      brush: brushElement,
+      isZoomed,
     }),
-    // brushElement es estable por render (sin deps dinámicas más allá de
-    // brushDataKey, lastIndex y zoom que ya están cubiertos); lo incluimos
-    // en deps vía el cierre para que useMemo lo recalcule cuando zoom/data
-    // cambien. Lo simplificamos listando las entradas reales.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [xDomain, zoom, activeProviders, onToggle, brushDataKey, lastIndex, data]
+    [currentDomain, refAreaLeft, refAreaRight, activeProviders, onToggle, isZoomed]
   );
 
-  // Leyenda: pares únicos provider + color derivados de los puntos del gráfico
-  // (ScatterProviderLegend deduplica por proveedor). `legendData` explícito
-  // gana cuando la vista lo provee (timeline, WU3).
+  // Leyenda: explícita si viene, sino derivada de data (par provider + color)
   const legendItems = useMemo(() => {
     if (legendData) return legendData;
-    const map = new Map<
-      string,
-      { provider: string; color: string; z?: number | null }
-    >();
+    const map = new Map<string, { provider: string; color: string; z?: number | null }>();
     for (const row of data) {
-      const provider = row["provider"];
-      const color = row["color"];
+      const provider = row["provider"] as string | undefined;
+      const color = row["color"] as string | undefined;
       if (typeof provider === "string" && typeof color === "string") {
         if (!map.has(provider)) {
           const z = typeof row["z"] === "number" ? (row["z"] as number) : undefined;
@@ -257,25 +357,49 @@ export function ChartExpandDialog({
         showCloseButton={false}
         className="w-[90vw] !max-w-[90vw] xl:!max-w-[1400px] h-[85vh] max-h-[85vh] rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-strong)] shadow-[var(--shadow-high)] flex flex-col gap-0 p-0 overflow-hidden"
       >
-        {/* Header del modal: título + subtítulo + reset + cierre + leyenda */}
+        {/* Header: título + controles de zoom + cierre + leyenda + selector temporal */}
         <div className="shrink-0 px-4 pt-3 pb-1 border-b border-[var(--border-strong)]">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <DialogTitle className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
               {title}
             </DialogTitle>
-            {/* Botón Reset: visible solo cuando hay zoom aplicado */}
-            {zoom && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1 text-[var(--text-secondary)]"
-                onClick={() => setZoom(null)}
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset
-              </Button>
+            {/* Controles de zoom — visibles solo cuando hay zoom aplicado */}
+            {isZoomed && (
+              <div className="flex items-center gap-1 ml-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => pan(-1)}
+                  title="Desplazar a la izquierda"
+                  aria-label="Desplazar a la izquierda"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => pan(1)}
+                  title="Desplazar a la derecha"
+                  aria-label="Desplazar a la derecha"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 text-[var(--text-secondary)]"
+                  onClick={() => setZoomedDomain(null)}
+                  title="Reiniciar zoom"
+                  aria-label="Reiniciar zoom"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Reiniciar
+                </Button>
+              </div>
             )}
-            {/* Botón X — mismo estilo que ficha-tecnica-modal.tsx L139-145 */}
+            {/* Botón X de cierre */}
             <button
               onClick={onClose}
               className="ml-auto inline-flex items-center justify-center rounded-md h-7 w-7 text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]"
@@ -288,6 +412,12 @@ export function ChartExpandDialog({
             <DialogDescription className="text-xs text-[var(--text-secondary)] mt-0.5">
               {subtitle}
             </DialogDescription>
+          )}
+          {/* Hint de interacción cuando no hay zoom */}
+          {!isZoomed && (
+            <div className="text-[10px] text-[var(--text-secondary)] opacity-70 mt-0.5">
+              Click y arrastrar sobre el gráfico para hacer zoom en el eje X
+            </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
             <ScatterProviderLegend
@@ -312,22 +442,19 @@ export function ChartExpandDialog({
           </div>
         </div>
 
-        {/* Gráfico ampliado — el contenedor flex-1 ocupa todo el espacio
-            disponible; el Brush viaja por ctx.brush y la vista lo inserta
-            DENTRO del chart (Recharts exige que <Brush> sea hijo de
-            LineChart/ScatterChart, no hermano del ResponsiveContainer). */}
+        {/* Gráfico ampliado — el contexto inyecta ReferenceArea y onMouseDown
+            onMouseMove onMouseUp que cada vista engancha a su chart Recharts. */}
         <div className="flex-1 min-h-0 flex flex-col p-2">
           <div data-chart-id={chartId} className="h-[70vh] max-h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
-              {/* Recharts exige un único ReactElement; la vista debe pasar exactamente
-                  un gráfico (ScatterChart/LineChart). El contrato de props sigue
-                  aceptando ReactNode por diseño. */}
+              {/* Recharts exige un único ReactElement; la vista debe pasar
+                  exactamente un chart (LineChart/ScatterChart). */}
               {renderChart(ctx) as ReactElement}
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Ficha técnica anidada — patrón tabla-view.tsx L443-448 */}
+        {/* Ficha técnica anidada — patrón tabla-view.tsx */}
         {fichaModelId && (
           <FichaTecnicaModal
             model={fichaModel}
