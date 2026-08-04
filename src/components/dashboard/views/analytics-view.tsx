@@ -1714,9 +1714,14 @@ export function AnalyticsView() {
           onTimeResChange={setTimeRes}
           legendData={timelineLegendData}
           renderChart={(ctx) => {
-            // Sin zoom en este commit punto-limpio: se muestran todos los
-            // datos del timeline y el dominio es el por defecto.
-            const chartData = timelineData;
+            // El timeline es categórico (eje por quarter). Recharts 2.15.x no
+            // restringe de forma fiable el eje categórico vía `domain` solo,
+            // así que filtramos los datos por los índices visibles que el
+            // modal calcula (ctx.visibleStartIndex/EndIndex).
+            const chartData = timelineData.slice(
+              ctx.visibleStartIndex,
+              ctx.visibleEndIndex + 1
+            );
             // Líneas visibles según activeProviders (la vista no filtra hoy;
             // el modal sí, según spec).
             const visibleProviders =
