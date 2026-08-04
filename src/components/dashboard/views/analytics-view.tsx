@@ -1714,14 +1714,11 @@ export function AnalyticsView() {
           onTimeResChange={setTimeRes}
           legendData={timelineLegendData}
           renderChart={(ctx) => {
-            // El timeline es categórico (eje por quarter). Recharts 2.15.x no
-            // restringe de forma fiable el eje categórico vía `domain` solo,
-            // así que filtramos los datos por los índices visibles que el
-            // modal calcula (ctx.visibleStartIndex/EndIndex).
-            const chartData = timelineData.slice(
-              ctx.visibleStartIndex,
-              ctx.visibleEndIndex + 1
-            );
+            // El timeline es categórico (eje por quarter). El Brush nativo
+            // controla la escala del eje así que no hace falta filtrar los
+            // datos por índices visibles: Recharts muestra solo las
+            // categorías dentro del rango del Brush automáticamente.
+            const chartData = timelineData;
             // Líneas visibles según activeProviders (la vista no filtra hoy;
             // el modal sí, según spec).
             const visibleProviders =
@@ -1845,6 +1842,7 @@ export function AnalyticsView() {
                     />
                   );
                 })}
+                {ctx.brush}
               </LineChart>
             );
           }}
@@ -1882,7 +1880,6 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Context Window (log2)"
                 domain={ctx.xDomain}
-                allowDataOverflow={ctx.allowDataOverflow}
                 ticks={[13, 15, 17, 19, 21]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -1973,6 +1970,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -2007,7 +2005,6 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Coding Index"
                 domain={ctx.xDomain}
-                allowDataOverflow={ctx.allowDataOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -2082,6 +2079,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -2119,7 +2117,6 @@ export function AnalyticsView() {
                 name="Precio por Millón de Tokens ($)"
                 scale="log"
                 domain={ctx.xDomain}
-                allowDataOverflow={ctx.allowDataOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -2195,6 +2192,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />

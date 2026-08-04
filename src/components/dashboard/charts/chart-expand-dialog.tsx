@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { ResponsiveContainer } from "recharts";
-import { Minus, Plus, RotateCcw, X } from "lucide-react";
+import { Brush, ResponsiveContainer } from "recharts";
+import { RotateCcw, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,32 +19,34 @@ import type { AIModel } from "@/lib/types";
  * ChartDialogContext — contrato del render prop.
  *
  * La vista recibe este contexto y lo aplica a su JSX Recharts:
- * - `xDomain` al XAxis (dominio visible tras el zoom, traducido a valores del
- *   eje: numeros para ejes numericos, categorias string para el timeline).
- * - `visibleStartIndex` / `visibleEndIndex` — indices del array `data` que
- *   forman parte de la ventana visible. El timeline lo usa para slice.
+ * - `xDomain` al XAxis (dominio por defecto; sin zoom porque el Brush nativo
+ *   controla la escala del eje directamente).
+ * - `brush` — elemento <Brush> preconfigurado. Recharts EXIGE que <Brush>
+ *   sea hijo directo del chart (LineChart/ScatterChart), NO hermano del
+ *   ResponsiveContainer ni fuera de un chart. Por eso viaja por contexto:
+ *   la vista lo inserta como hijo de su chart con {ctx.brush}.
  * - `onPointClick` al click de puntos (ficha tecnica).
  * - `activeProviders`/`onToggleProvider` para leyenda y opacidad.
+ *
+ * El Brush nativo de Recharts es el estandar de dashboards (Plotly, ECharts,
+ * D3, Recharts usan este patron). Trabaja con la escala del eje, no con
+ * indices del array, por lo que es universal: funciona igual si los datos
+ * estan ordenados o no por X (eso era lo que rompia el approach custom).
  *
  * El eje Y nunca se toca.
  */
 export interface ChartDialogContext {
   xDomain: [number | string | "auto", number | string | "auto"];
-  /** Indices [start, end] del array data que caen dentro de la ventana. */
-  visibleStartIndex: number;
-  visibleEndIndex: number;
+  /** Elemento <Brush> para insertar como hijo del chart. */
+  brush: ReactNode;
   onPointClick: (modelId: string) => void;
   activeProviders: string[];
   onToggleProvider: (p: string) => void;
   /**
-   * true cuando hay zoom aplicado. Las vistas lo pasan al XAxis como
-   * allowDataOverflow={ctx.allowDataOverflow}: Recharts por defecto IGNORA
-   * el `domain` si hay puntos fuera y expande el eje para mostrarlos todos.
-   * Con allowDataOverflow=true los puntos fuera del dominio se recortan
-   * visualmente. Necesario en ScatterChart; en LineChart (timeline) no
-   * hace nada porque filtramos los datos por indices (no quedan puntos fuera).
+   * true cuando hay zoom aplicado (Brush con rango != completo). Las vistas
+   * no lo necesitan; lo usa el modal para mostrar/ocultar el boton Reiniciar.
    */
-  allowDataOverflow: boolean;
+  isZoomed: boolean;
 }
 
 /** Resolucion temporal del timeline (mismo conjunto de valores que AnalyticsView). */
@@ -72,28 +74,20 @@ interface ChartExpandDialogProps {
 }
 
 /**
- * ChartExpandDialog — modal de pantalla completa para ver un grafico grande
- * con zoom simple: botones +/- (zoom por pasos) y un slider de pan (barra
- * deslizante horizontal nativa). Boton Reiniciar vuelve al dominio completo.
- *
- * Toda la logica opera en INDICES del array `data` (0..N-1). El dominio
- * visible son los indices `[start, end]`. La traduccion a valores del
- * dominio X (numeros o categorias) se hace una sola vez al construir
- * `ctx.xDomain`. Esto unifica el ejes numericos y categoricos sin bifurcar.
+ * ChartExpandDialog — modal de pantalla completa con zoom por Brush nativo
+ * de Recharts (estandar de dashboards). Sin scrollbar custom ni botones +/-.
  *
  * Interaccion:
- * - Boton `+`: reduce el ancho de la ventana a x0.8 (centrado en el centro
- *   de la ventana actual). Si el ancho resultante seria < 2 elementos, no
- *   hace nada (zoom maximo).
- * - Boton `-`: amplia el ancho de la ventana a x1.25. Si llega a >= N,
- *   vuelve al dominio completo (sin zoom).
- * - Slider de pan: desplaza la ventana horizontalmente dentro de los
- *   bounds [0, N - windowHeight]. value 0 = ventana pegada al inicio,
- *   value 100 = pegada al final. Se deshabilita cuando no hay zoom.
- * - Boton Reiniciar: ventana = [0, N-1] (dominio completo).
+ * - Arrastrar las manijas del Brush ↓ recorta el rango visible del eje X.
+ * - Arrastrar el centro del Brush desplaza la ventana (pan nativo).
+ * - Teclado: tab al Brush, flechas izq/der ajustan las manijas.
+ * - Boton Reiniciar (solo visible cuando hay zoom) vuelve al dominio completo.
  *
- * El estado se reinicia al cerrar gracias al montaje condicional de las
- * vistas ({open && <ChartExpandDialog .../>}).
+ * El Brush controla la escala del eje X directamente, asi que funciona igual
+ * en LineChart (timeline categórico) y en ScatterChart (numerico/log) sin
+ * tocar la logica de datos. Es el approach universal.
+ *
+ * El estado zoomed se reinicia al cerrar el modal (montaje condicional).
  */
 export function ChartExpandDialog({
   open,
@@ -112,157 +106,66 @@ export function ChartExpandDialog({
   onTimeResChange,
   legendData,
 }: ChartExpandDialogProps) {
-  const N = data.length;
+  const lastIndex = Math.max(0, data.length - 1);
 
   /**
-   * Ventana visible en indices del array data: [start, end] inclusivos.
-   * null = sin zoom, equivalente a [0, N-1]. Lo mantenemos como estado
-   * unico porque todo se deriva de aca.
+   * Estado de zoom del Brush: indices [start, end] del array data. El Brush
+   * nativo maneja su propia UI y los recortes del eje; nosotros solo
+   * mantenemos este estado para:
+   * 1. Pasarselo al Brush via startIndex/endIndex (controlado).
+   * 2. Saber si hay zoom aplicado (mostrar el boton Reiniciar).
+   * 3. Resetear el Brush al Reiniciar (volviendo a [0, lastIndex]).
    */
-  const [windowStart, setWindowStart] = useState<number>(0);
-  const [windowEnd, setWindowEnd] = useState<number>(Math.max(0, N - 1));
-  /** true cuando hay zoom aplicado (ventana != [0, N-1]). */
-  const isZoomed = windowStart > 0 || windowEnd < N - 1;
-
+  const [zoom, setZoom] = useState<{ start: number; end: number } | null>(null);
+  const isZoomed = zoom !== null && (zoom.start > 0 || zoom.end < lastIndex);
   const [fichaModelId, setFichaModelId] = useState<string | null>(null);
 
-  // --- Logica de zoom (todo en indices) ---
-
-  /** Ancho actual de la ventana en elementos. */
-  const windowWidth = Math.max(1, windowEnd - windowStart + 1);
-
-  /** centra el zoom en el centro de la ventana actual. nuevo ancho en indices. */
-  const applyZoom = (newWidthRaw: number) => {
-    if (N <= 1) return;
-    const newWidth = Math.min(N, Math.max(2, Math.round(newWidthRaw)));
-    if (newWidth >= N) {
-      // Vuelve al dominio completo
-      setWindowStart(0);
-      setWindowEnd(N - 1);
-      return;
-    }
-    const center = (windowStart + windowEnd) / 2;
-    let newStart = Math.round(center - newWidth / 2);
-    let newEnd = newStart + newWidth - 1;
-    // Clamp a los bounds del array
-    if (newStart < 0) {
-      newStart = 0;
-      newEnd = newWidth - 1;
-    }
-    if (newEnd > N - 1) {
-      newEnd = N - 1;
-      newStart = N - newWidth;
-    }
-    setWindowStart(newStart);
-    setWindowEnd(newEnd);
-  };
-
-  /** Boton +: reduce ancho a x0.8 (acercar). */
-  const zoomIn = () => applyZoom(windowWidth * 0.8);
-
-  /** Boton -: amplia ancho a x1.25 (alejar). */
-  const zoomOut = () => applyZoom(windowWidth * 1.25);
-
-  /** Boton Reiniciar: dominio completo. */
-  const resetZoom = () => {
-    setWindowStart(0);
-    setWindowEnd(Math.max(0, N - 1));
-  };
-
   /**
-   * Slider de pan: el thumb desplaza la ventana. value 0..100 => start
-   * en [0, N - windowWidth]. Solo activo cuando hay zoom.
+   * Brush preconfigurado. La vista lo inserta dentro de su chart como hijo
+   * directo. El `dataKey` es el del eje X (x o quarter). El Brush controla
+   * la escala del eje del chart al que pertenece: cambia el dominio visible
+   * instantaneamente, sin que tengamos que traducir indices a valores.
    */
-  const panMax = Math.max(0, N - windowWidth);
-
-  /**
-   * Barra de pan estilo scrollbar: el handle se arrastra de izquierda a
-   * derecha. Su ancho es proporcional a windowWidth/N ( chicas = mucho zoom )
-   * y su posicion refleja windowStart relativ a panMax.
-   * Implementacion manual con mouse events (sin librerias). Refs al container
-   * y un estado de drag. useEffect engancha listeners globales mientras se
-   * arrastra, para no soltar al salir del handle.
-   */
-  const trackRef = useRef<HTMLDivElement | null>(null);
-  const dragStateRef = useRef<{ startMouseX: number; startWindowStart: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-
-  /** Ancho del handle como porcentaje del track (0..100). Sin zoom = 100%. */
-  const handleWidthPct = N > 0 ? (windowWidth / N) * 100 : 100;
-  /** Posicion del handle (left) como porcentaje del track (0..100). */
-  const handleLeftPct = panMax > 0 ? (windowStart / panMax) * (100 - handleWidthPct) : 0;
-
-  /** Inicia el drag: captura la posicion inicial del mouse y de la ventana. */
-  const onHandleMouseDown = (e: React.MouseEvent) => {
-    if (!isZoomed || panMax === 0) return;
-    e.preventDefault();
-    dragStateRef.current = {
-      startMouseX: e.clientX,
-      startWindowStart: windowStart,
-    };
-    setIsDragging(true);
-  };
-
-  // Listeners globales mientras arrastra: mousemove actualiza windowStart
-  // segun el desplazamiento del mouse; mouseup suelta el drag.
-  useEffect(() => {
-    if (!isDragging) return;
-    const onMove = (e: MouseEvent) => {
-      const st = dragStateRef.current;
-      const track = trackRef.current;
-      if (!st || !track) return;
-      const trackWidth = track.getBoundingClientRect().width;
-      if (trackWidth <= 0) return;
-      // Cuantos indices representa el desplazamiento en px?
-      // 1 px = panMax / (trackWidth - handleWidthEnPx) indices.
-      const handleWidthPx = (handleWidthPct / 100) * trackWidth;
-      const usableWidth = Math.max(1, trackWidth - handleWidthPx);
-      const dxPx = e.clientX - st.startMouseX;
-      const deltaIdx = (dxPx / usableWidth) * panMax;
-      let newStart = Math.round(st.startWindowStart + deltaIdx);
-      newStart = Math.max(0, Math.min(panMax, newStart));
-      setWindowStart(newStart);
-      setWindowEnd(newStart + windowWidth - 1);
-    };
-    const onUp = () => {
-      dragStateRef.current = null;
-      setIsDragging(false);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [isDragging, panMax, windowWidth, handleWidthPct]);
-
-  // --- Traduccion indices -> dominio X para la vista ---
-
-  const xDomain = useMemo<
-    [number | string | "auto", number | string | "auto"]
-  >(() => {
-    if (N === 0) return defaultXDomain;
-    const startValue = data[windowStart]?.[xDataKey];
-    const endValue = data[windowEnd]?.[xDataKey];
-    if (startValue === undefined || endValue === undefined) return defaultXDomain;
-    // Si defaultXDomain era ["auto","auto"], respetamos el auto para que
-    // Recharts calcule ticks; pasamos los valores concretos igual porque
-    // el eje espera el dominio que mostramos.
-    return [startValue as number | string, endValue as number | string];
-  }, [data, xDataKey, windowStart, windowEnd, defaultXDomain, N]);
+  const brush: ReactNode = (
+    <Brush
+      dataKey={xDataKey}
+      height={28}
+      travellerWidth={10}
+      stroke="var(--border-strong)"
+      fill="var(--bg-overlay)"
+      startIndex={zoom?.start ?? 0}
+      endIndex={zoom?.end ?? lastIndex}
+      onChange={(r) => {
+        if (!r) return;
+        const s = r.startIndex ?? 0;
+        const e = r.endIndex ?? lastIndex;
+        // Ignorar cambios triviales (mismo rango) para no marcar zoomed por error
+        if (s === 0 && e === lastIndex) {
+          setZoom(null);
+        } else {
+          setZoom({ start: s, end: e });
+        }
+      }}
+    />
+  );
 
   const ctx: ChartDialogContext = useMemo(
     () => ({
-      xDomain,
-      visibleStartIndex: windowStart,
-      visibleEndIndex: windowEnd,
+      xDomain: defaultXDomain,
+      brush,
       onPointClick: (modelId: string) => setFichaModelId(modelId),
       activeProviders,
       onToggleProvider: onToggle,
-      allowDataOverflow: isZoomed,
+      isZoomed,
     }),
-    [xDomain, windowStart, windowEnd, activeProviders, onToggle, isZoomed]
+    // brush es estable por render salvo que cambien sus inputs; lo listamos
+    // indirectamente via zoom+lastIndex+xDataKey para forzar el recalculo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defaultXDomain, activeProviders, onToggle, isZoomed, zoom, lastIndex, xDataKey, data]
   );
+
+  /** Reiniciar: vuelve el Brush al dominio completo. */
+  const resetZoom = () => setZoom(null);
 
   // Leyenda: explicita si viene, sino derivada de data (par provider + color)
   const legendItems = useMemo(() => {
@@ -291,50 +194,26 @@ export function ChartExpandDialog({
         showCloseButton={false}
         className="w-[90vw] !max-w-[90vw] xl:!max-w-[1400px] h-[85vh] max-h-[85vh] rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-strong)] shadow-[var(--shadow-high)] flex flex-col gap-0 p-0 overflow-hidden"
       >
-        {/* Header: titulo + controles de zoom + cierre + leyenda + selector temporal */}
+        {/* Header: titulo + reinicio + cierre + leyenda + selector temporal */}
         <div className="shrink-0 px-4 pt-3 pb-1 border-b border-[var(--border-strong)]">
           <div className="flex items-center gap-2 flex-wrap">
             <DialogTitle className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
               {title}
             </DialogTitle>
-            {/* Controles de zoom: siempre visibles (+ y -), Reiniciar solo con zoom */}
-            <div className="flex items-center gap-1 ml-2">
+            {/* Boton Reiniciar — visible solo cuando hay zoom aplicado */}
+            {isZoomed && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2"
-                onClick={zoomIn}
-                disabled={N <= 1 || windowWidth <= 2}
-                title="Acercar (zoom +)"
-                aria-label="Acercar (zoom +)"
+                className="h-7 text-xs gap-1 text-[var(--text-secondary)]"
+                onClick={resetZoom}
+                title="Reiniciar zoom"
+                aria-label="Reiniciar zoom"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3 w-3" />
+                Reiniciar
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                onClick={zoomOut}
-                disabled={N <= 1 || !isZoomed}
-                title="Alejar (zoom -)"
-                aria-label="Alejar (zoom -)"
-              >
-                <Minus className="h-3.5 w-3.5" />
-              </Button>
-              {isZoomed && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs gap-1 text-[var(--text-secondary)]"
-                  onClick={resetZoom}
-                  title="Reiniciar zoom"
-                  aria-label="Reiniciar zoom"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Reiniciar
-                </Button>
-              )}
-            </div>
+            )}
             {/* Boton X de cierre */}
             <button
               onClick={onClose}
@@ -348,6 +227,11 @@ export function ChartExpandDialog({
             <DialogDescription className="text-xs text-[var(--text-secondary)] mt-0.5">
               {subtitle}
             </DialogDescription>
+          )}
+          {!isZoomed && (
+            <div className="text-[10px] text-[var(--text-secondary)] opacity-70 mt-0.5">
+              Arrastrá las manijas de la barra inferior para hacer zoom en el eje X
+            </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
             <ScatterProviderLegend
@@ -372,7 +256,7 @@ export function ChartExpandDialog({
           </div>
         </div>
 
-        {/* Grafico ampliado */}
+        {/* Grafico ampliado: el contexto inyecta <Brush> como hijo del chart. */}
         <div className="flex-1 min-h-0 flex flex-col p-2">
           <div data-chart-id={chartId} className="h-[70vh] max-h-full w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -380,37 +264,6 @@ export function ChartExpandDialog({
                   exactamente un chart (LineChart/ScatterChart). */}
               {renderChart(ctx) as ReactElement}
             </ResponsiveContainer>
-          </div>
-
-          {/* Barra de pan estilo scrollbar: contenedor (track) gris claro con
-              un handle (manija) arrastrable. Solo activa cuando hay zoom.
-              El ancho del handle refleja la cantidad de zoom (chico = mucho
-              zoom); la posicion refleja donde esta la ventana visible. */}
-          <div className="shrink-0 pt-2 px-1">
-            <div
-              ref={trackRef}
-              className="relative w-full h-3 rounded-full bg-[var(--bg-overlay)] border border-[var(--border-strong)]"
-              aria-label="Desplazar el gráfico horizontalmente"
-              role="scrollbar"
-              aria-orientation="horizontal"
-              aria-valuenow={windowStart}
-              aria-valuemin={0}
-              aria-valuemax={panMax}
-              aria-disabled={!isZoomed}
-            >
-              {isZoomed && (
-                <div
-                  onMouseDown={onHandleMouseDown}
-                  className={`absolute top-0 bottom-0 rounded-full bg-[var(--brand-primary)] border border-[var(--brand-primary)] ${
-                    isDragging ? "cursor-grabbing" : "cursor-grab"
-                  } transition-colors hover:brightness-110`}
-                  style={{
-                    left: `${handleLeftPct}%`,
-                    width: `${handleWidthPct}%`,
-                  }}
-                />
-              )}
-            </div>
           </div>
         </div>
 

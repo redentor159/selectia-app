@@ -842,7 +842,6 @@ function IngenieroOverview() {
                 dataKey="x"
                 name="Precio USD/M (log10)"
                 domain={ctx.xDomain}
-                allowDataOverflow={ctx.allowDataOverflow}
                 ticks={[-2, -1, 0, 1, 2]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -905,6 +904,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -933,7 +933,6 @@ function IngenieroOverview() {
                 dataKey="x"
                 name="Downloads (log10)"
                 domain={ctx.xDomain}
-                allowDataOverflow={ctx.allowDataOverflow}
                 ticks={[2, 3, 4, 5, 6, 7]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -988,6 +987,7 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
+              {ctx.brush}
             </ScatterChart>
           )}
         />
