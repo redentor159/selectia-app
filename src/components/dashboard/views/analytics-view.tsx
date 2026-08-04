@@ -1740,6 +1740,9 @@ export function AnalyticsView() {
               <LineChart
                 data={chartData}
                 margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
+                onMouseDown={ctx.onMouseDown}
+                onMouseMove={ctx.onMouseMove}
+                onMouseUp={ctx.onMouseUp}
               >
                 <CartesianGrid
                   stroke="var(--border-default)"
@@ -1842,7 +1845,7 @@ export function AnalyticsView() {
                     />
                   );
                 })}
-                {ctx.brush}
+                {ctx.refArea}
               </LineChart>
             );
           }}
@@ -1869,8 +1872,10 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
-              data={contextSpeedData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -1971,7 +1976,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -1995,8 +2000,10 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
-              data={codingAgenticData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2081,7 +2088,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -2107,8 +2114,10 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
-              data={efficiencyData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              onMouseDown={ctx.onMouseDown}
+              onMouseMove={ctx.onMouseMove}
+              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2195,7 +2204,7 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.brush}
+              {ctx.refArea}
             </ScatterChart>
           )}
         />
