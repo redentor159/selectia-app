@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { ResponsiveContainer } from "recharts";
 import { Minus, Plus, RotateCcw, X } from "lucide-react";
@@ -174,13 +174,67 @@ export function ChartExpandDialog({
    * en [0, N - windowWidth]. Solo activo cuando hay zoom.
    */
   const panMax = Math.max(0, N - windowWidth);
-  const panValue = panMax > 0 ? (windowStart / panMax) * 100 : 0;
-  const onPanChange = (pct: number) => {
-    if (panMax === 0) return;
-    const newStart = Math.round((pct / 100) * panMax);
-    setWindowStart(newStart);
-    setWindowEnd(newStart + windowWidth - 1);
+
+  /**
+   * Barra de pan estilo scrollbar: el handle se arrastra de izquierda a
+   * derecha. Su ancho es proporcional a windowWidth/N ( chicas = mucho zoom )
+   * y su posicion refleja windowStart relativ a panMax.
+   * Implementacion manual con mouse events (sin librerias). Refs al container
+   * y un estado de drag. useEffect engancha listeners globales mientras se
+   * arrastra, para no soltar al salir del handle.
+   */
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{ startMouseX: number; startWindowStart: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  /** Ancho del handle como porcentaje del track (0..100). Sin zoom = 100%. */
+  const handleWidthPct = N > 0 ? (windowWidth / N) * 100 : 100;
+  /** Posicion del handle (left) como porcentaje del track (0..100). */
+  const handleLeftPct = panMax > 0 ? (windowStart / panMax) * (100 - handleWidthPct) : 0;
+
+  /** Inicia el drag: captura la posicion inicial del mouse y de la ventana. */
+  const onHandleMouseDown = (e: React.MouseEvent) => {
+    if (!isZoomed || panMax === 0) return;
+    e.preventDefault();
+    dragStateRef.current = {
+      startMouseX: e.clientX,
+      startWindowStart: windowStart,
+    };
+    setIsDragging(true);
   };
+
+  // Listeners globales mientras arrastra: mousemove actualiza windowStart
+  // segun el desplazamiento del mouse; mouseup suelta el drag.
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent) => {
+      const st = dragStateRef.current;
+      const track = trackRef.current;
+      if (!st || !track) return;
+      const trackWidth = track.getBoundingClientRect().width;
+      if (trackWidth <= 0) return;
+      // Cuantos indices representa el desplazamiento en px?
+      // 1 px = panMax / (trackWidth - handleWidthEnPx) indices.
+      const handleWidthPx = (handleWidthPct / 100) * trackWidth;
+      const usableWidth = Math.max(1, trackWidth - handleWidthPx);
+      const dxPx = e.clientX - st.startMouseX;
+      const deltaIdx = (dxPx / usableWidth) * panMax;
+      let newStart = Math.round(st.startWindowStart + deltaIdx);
+      newStart = Math.max(0, Math.min(panMax, newStart));
+      setWindowStart(newStart);
+      setWindowEnd(newStart + windowWidth - 1);
+    };
+    const onUp = () => {
+      dragStateRef.current = null;
+      setIsDragging(false);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isDragging, panMax, windowWidth, handleWidthPct]);
 
   // --- Traduccion indices -> dominio X para la vista ---
 
@@ -328,20 +382,35 @@ export function ChartExpandDialog({
             </ResponsiveContainer>
           </div>
 
-          {/* Barra deslizante de pan — input range nativo. Se deshabilita
-              cuando no hay zoom (la ventana ya cubre todo el dominio). */}
+          {/* Barra de pan estilo scrollbar: contenedor (track) gris claro con
+              un handle (manija) arrastrable. Solo activa cuando hay zoom.
+              El ancho del handle refleja la cantidad de zoom (chico = mucho
+              zoom); la posicion refleja donde esta la ventana visible. */}
           <div className="shrink-0 pt-2 px-1">
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={panValue}
-              onChange={(e) => onPanChange(Number(e.target.value))}
-              disabled={!isZoomed}
+            <div
+              ref={trackRef}
+              className="relative w-full h-3 rounded-full bg-[var(--bg-overlay)] border border-[var(--border-strong)]"
               aria-label="Desplazar el gráfico horizontalmente"
-              className="w-full h-2 cursor-pointer disabled:cursor-default disabled:opacity-30"
-              style={{ accentColor: "var(--brand-primary)" }}
-            />
+              role="scrollbar"
+              aria-orientation="horizontal"
+              aria-valuenow={windowStart}
+              aria-valuemin={0}
+              aria-valuemax={panMax}
+              aria-disabled={!isZoomed}
+            >
+              {isZoomed && (
+                <div
+                  onMouseDown={onHandleMouseDown}
+                  className={`absolute top-0 bottom-0 rounded-full bg-[var(--brand-primary)] border border-[var(--brand-primary)] ${
+                    isDragging ? "cursor-grabbing" : "cursor-grab"
+                  } transition-colors hover:brightness-110`}
+                  style={{
+                    left: `${handleLeftPct}%`,
+                    width: `${handleWidthPct}%`,
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
 
