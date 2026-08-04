@@ -1869,6 +1869,7 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
+              data={contextSpeedData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
             >
               <CartesianGrid
@@ -1994,6 +1995,7 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
+              data={codingAgenticData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
             >
               <CartesianGrid
@@ -2105,6 +2107,7 @@ export function AnalyticsView() {
           onToggle={toggleProvider}
           renderChart={(ctx) => (
             <ScatterChart
+              data={efficiencyData}
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
             >
               <CartesianGrid

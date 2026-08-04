@@ -835,7 +835,7 @@ function IngenieroOverview() {
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+            <ScatterChart data={scatterData} margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
@@ -926,7 +926,7 @@ function IngenieroOverview() {
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
+            <ScatterChart data={adoptionData} margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
