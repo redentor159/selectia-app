@@ -835,7 +835,7 @@ function IngenieroOverview() {
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }} onMouseDown={ctx.onMouseDown} onMouseMove={ctx.onMouseMove} onMouseUp={ctx.onMouseUp}>
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
@@ -904,7 +904,6 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
-              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -926,7 +925,7 @@ function IngenieroOverview() {
           activeProviders={activeProviders}
           onToggle={toggleProvider}
           renderChart={(ctx) => (
-            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }} onMouseDown={ctx.onMouseDown} onMouseMove={ctx.onMouseMove} onMouseUp={ctx.onMouseUp}>
+            <ScatterChart margin={{ top: 10, right: 16, bottom: 24, left: 8 }}>
               <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" />
               <XAxis
                 type="number"
@@ -987,7 +986,6 @@ function IngenieroOverview() {
                   />
                 ))}
               </Scatter>
-              {ctx.refArea}
             </ScatterChart>
           )}
         />

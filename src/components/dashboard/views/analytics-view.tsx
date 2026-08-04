@@ -1714,25 +1714,9 @@ export function AnalyticsView() {
           onTimeResChange={setTimeRes}
           legendData={timelineLegendData}
           renderChart={(ctx) => {
-            // Filtrado por dominio X categórico (nueva ctx.xDomain ya refleja
-            // el slice seleccionado; el timeline slicea por índices encontrados).
-            const startCat = ctx.xDomain[0];
-            const endCat = ctx.xDomain[1];
-            const startIndex =
-              typeof startCat === "string"
-                ? timelineData.findIndex((d) => d.quarter === startCat)
-                : 0;
-            const endIndex =
-              typeof endCat === "string"
-                ? timelineData.findIndex((d) => d.quarter === endCat)
-                : timelineData.length - 1;
-            const chartData =
-              startIndex > 0 || endIndex < timelineData.length - 1
-                ? timelineData.slice(
-                    Math.max(0, startIndex),
-                    Math.min(timelineData.length, endIndex + 1)
-                  )
-                : timelineData;
+            // Sin zoom en este commit punto-limpio: se muestran todos los
+            // datos del timeline y el dominio es el por defecto.
+            const chartData = timelineData;
             // Líneas visibles según activeProviders (la vista no filtra hoy;
             // el modal sí, según spec).
             const visibleProviders =
@@ -1754,9 +1738,6 @@ export function AnalyticsView() {
               <LineChart
                 data={chartData}
                 margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
-                onMouseDown={ctx.onMouseDown}
-                onMouseMove={ctx.onMouseMove}
-                onMouseUp={ctx.onMouseUp}
               >
                 <CartesianGrid
                   stroke="var(--border-default)"
@@ -1859,7 +1840,6 @@ export function AnalyticsView() {
                     />
                   );
                 })}
-                {ctx.refArea}
               </LineChart>
             );
           }}
@@ -1887,9 +1867,6 @@ export function AnalyticsView() {
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
-              onMouseDown={ctx.onMouseDown}
-              onMouseMove={ctx.onMouseMove}
-              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -1990,7 +1967,6 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -2015,9 +1991,6 @@ export function AnalyticsView() {
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
-              onMouseDown={ctx.onMouseDown}
-              onMouseMove={ctx.onMouseMove}
-              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2102,7 +2075,6 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.refArea}
             </ScatterChart>
           )}
         />
@@ -2129,9 +2101,6 @@ export function AnalyticsView() {
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
-              onMouseDown={ctx.onMouseDown}
-              onMouseMove={ctx.onMouseMove}
-              onMouseUp={ctx.onMouseUp}
             >
               <CartesianGrid
                 stroke="var(--border-default)"
@@ -2218,7 +2187,6 @@ export function AnalyticsView() {
                   />
                 ))}
               </Scatter>
-              {ctx.refArea}
             </ScatterChart>
           )}
         />
