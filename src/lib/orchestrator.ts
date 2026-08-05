@@ -1729,6 +1729,149 @@ function applyOpenRouterEnrichment(
   }
 
   // ============================================================
+  // Upsert de NOVEDADES de OR (patrón 3): modelos que NO existen en AA
+  // en absoluto (ni completo ni variante de esfuerzo) pero que OR ya
+  // publica con benchmarks de AA embebidos (II/coding/agentic). Solo se
+  // agregan los lanzados en los últimos RECENT_CREATED_DAYS días para no
+  // inflar el catálogo con huérfanos históricos (Qwen3.8 Max, Qwen3.7,
+  // o cualquier modelo que AA publique con días de retraso).
+  //
+  // Diferencias con los otros dos upserts:
+  //   - El global (ENABLE_OR_UPSERT) mete TODOS los huérfanos con II → satura
+  //   - El puntual (variantes) parte de un modelo AA que ya existe
+  //   - Este solo trae lanzamientos recientes de OR que AA aún no lista
+  //
+  // Reglas (no mezcla datos, no pisa, no duplica — mismas garantías):
+  //   1. Solo OR models con created dentro de la ventana (default 30 días)
+  //   2. No alias (alias_target == null)
+  //   3. No variante de esfuerzo (low/medium/high/max/xhigh/minimal)
+  //   4. GATE: requiere II de AA embebido en OR (misma regla que upsert global)
+  //   5. No reclamado por un modelo AA existente (claimedOrIds)
+  //   6. No duplica ningún modelo ya en pool (namesMatch fuzzy)
+  //   7. Dedup por or.id (modelsMap indexa el mismo modelo 3 veces)
+  //   8. La ventana es configurable vía env OR_RECENT_DAYS (default 30)
+  // ============================================================
+  {
+    const RECENT_CREATED_DAYS = (() => {
+      const raw = Number(process.env.OR_RECENT_DAYS ?? "30");
+      return Number.isFinite(raw) && raw > 0 ? raw : 30;
+    })();
+    const EFFORT_RE_NEWS = /\((high|low|max|xhigh|minimal|medium)\)/i;
+    const seenNewsIds = new Set<string>();
+    const cutoffMs = Date.now() - RECENT_CREATED_DAYS * 24 * 60 * 60 * 1000;
+
+    for (const or of openrouter.modelsMap.values()) {
+      // Dedup: el mismo ORModel aparece bajo 3 claves (slug, id, canonical)
+      if (or.id && seenNewsIds.has(or.id)) continue;
+      if (or.id) seenNewsIds.add(or.id);
+
+      // Filtro 1: ya fue reclamado por un modelo AA existente
+      if (or.id && claimedOrIds.has(or.id)) continue;
+
+      // Filtro 2: alias → descartar (el real se agrega aparte)
+      if (or.alias_target != null) continue;
+
+      // Filtro 3: variante de esfuerzo
+      if (EFFORT_RE_NEWS.test(or.name)) continue;
+
+      // Filtro 4 (GATE): sin II de AA → no es candidato
+      const aa = or.benchmarks?.artificial_analysis;
+      const ii = aa?.intelligence_index ?? null;
+      if (ii == null) continue;
+
+      // Filtro 5: novedad — dentro de la ventana de días
+      if (or.created == null) continue;
+      const createdNewsMs = or.created < 1e12 ? or.created * 1000 : or.created;
+      if (createdNewsMs < cutoffMs) continue;
+
+      // Filtro 6: defensa en profundidad — ya existe en la pool
+      if (models.some((m) => namesMatch(m.name, or.name))) continue;
+
+      // Construcción del AIModel (replica el patrón del block global)
+      const creator = or.id.split("/")[0] ?? undefined;
+      const { provider, family, domain, color } = inferProvider(or.name, creator);
+      const { license, licenseName } = inferLicense(or.name, provider);
+      const params = inferParameters(or.name);
+      const openWeights = license === "open-source-full" || license === "conditional";
+      const inputPrice = toUsdPerMillion(or.pricing?.prompt);
+      const outputPrice = toUsdPerMillion(or.pricing?.completion);
+      const releaseDate = new Date(createdNewsMs).toISOString();
+
+      const newModel: AIModel = {
+        id: `ornews-${or.id}`,
+        name: or.name,
+        provider,
+        providerDomain: domain,
+        providerColor: color,
+        family,
+        license,
+        licenseName,
+        priceInputUsd: inputPrice,
+        priceOutputUsd: outputPrice,
+        priceCacheHitUsd: toUsdPerMillion(or.pricing?.input_cache_read),
+        priceCacheWriteUsd: toUsdPerMillion(or.pricing?.input_cache_write),
+        contextWindow: or.context_length ?? or.top_provider?.context_length ?? 8192,
+        contextWindowSource: (or.context_length ?? or.top_provider?.context_length) ? "or" : "unknown",
+        maxOutput: or.top_provider?.max_completion_tokens ?? 4096,
+        intelligenceIndex: ii,
+        codingIndex: aa?.coding_index ?? null,
+        agenticIndex: aa?.agentic_index ?? null,
+        speedTps: null,           // OR no trae TPS — motor imputa baseline 50
+        ttftMs: null,             // OR no trae TTFT
+        elo: null,                // se enriquece en próximos refresh vía Arena
+        eloCi: null,
+        eloVotes: null,
+        capabilities: inferCapabilities(or.name),
+        knowledgeCutoff: or.knowledge_cutoff ?? (releaseDate ? inferKnowledgeCutoff(releaseDate, or.name) : null),
+        releaseDate,
+        parameters: params,
+        isMoE: inferMoE(or.name),
+        freeAccess: inferFreeAccess(provider, openWeights, (inputPrice ?? 0) > 0),
+        inferenceProviders: [{ name: provider, cheapest: true }],
+        openWeights,
+        ollamaAvailable: openWeights,
+        active: or.expiration_date ? false : true,
+        // HF repo: si OR lo conoce (Qwen3.8-Max aún no lo tiene en OR)
+        hfRepoId: or.hugging_face_id ?? null,
+
+        // --- Campos or* ---
+        orModelId: or.id ?? null,
+        orCanonicalSlug: or.canonical_slug ?? null,
+        orName: or.name ?? null,
+        orDescription: or.description ?? null,
+        orCreatedAt: or.created ?? null,
+        orIsAlias: null,
+        orAliasTargetSlug: null,
+        orContextLength: or.context_length ?? or.top_provider?.context_length ?? null,
+        orMaxCompletion: or.top_provider?.max_completion_tokens ?? null,
+        orIsModerated: or.top_provider?.is_moderated ?? null,
+        orInputPrice: inputPrice,
+        orOutputPrice: outputPrice,
+        orCacheReadPrice: toUsdPerMillion(or.pricing?.input_cache_read),
+        orCacheWritePrice: toUsdPerMillion(or.pricing?.input_cache_write),
+        orWebSearchPrice: or.pricing?.web_search ? parseFloat(or.pricing.web_search) : null,
+        orHuggingFaceId: or.hugging_face_id ?? null,
+        orKnowledgeCutoff: or.knowledge_cutoff ?? null,
+        orExpirationDate: or.expiration_date ?? null,
+        orInputModalities: or.architecture?.input_modalities ?? null,
+        orOutputModalities: or.architecture?.output_modalities ?? null,
+        orTokenizer: or.architecture?.tokenizer ?? null,
+        orInstructType: or.architecture?.instruct_type ?? null,
+        orSupportedParameters: or.supported_parameters ?? null,
+        orReasoningMandatory: or.reasoning?.mandatory ?? null,
+        orReasoningDefaultEnabled: or.reasoning?.default_enabled ?? null,
+        orReasoningEfforts: or.reasoning?.supported_efforts ?? null,
+        orBenchmarksAaIntelligence: ii,
+        orBenchmarksAaCoding: aa?.coding_index ?? null,
+        orBenchmarksAaAgentic: aa?.agentic_index ?? null,
+      };
+
+      models.push(newModel);
+      upserted++;
+    }
+  }
+
+  // ============================================================
   // Upsert de modelos OR huérfanos (no existen en AA pero sí en OR).
   // Solo se agregan los que ya tienen benchmarks.artificial_analysis.intelligence_index
   // (es el II de AA, copia legítima — misma escala). Los sin II se ignoran.
