@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Brush, ReferenceArea, ResponsiveContainer } from "recharts";
 import { ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
@@ -42,7 +42,9 @@ export interface ChartDialogContext {
   brush: ReactNode | null;
   onMouseDown: (e: any) => void;
   onMouseMove: (e: any) => void;
-  onMouseUp: () => void;
+  /** mouseUp recibe el evento de Recharts (puede ser null). En modo "drag"
+   *  se usa para distinguir click (< 5px) de drag (>= 5px). */
+  onMouseUp: (e: any) => void;
   onPointClick: (modelId: string) => void;
   activeProviders: string[];
   onToggleProvider: (p: string) => void;
@@ -148,6 +150,21 @@ export function ChartExpandDialog({
   const [refAreaLeft, setRefAreaLeft] = useState<DomainValue | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<DomainValue | null>(null);
   const [fichaModelId, setFichaModelId] = useState<string | null>(null);
+
+  /**
+   * Ref con las coordenadas iniciales (en píxeles) del button-down sobre el
+   * chart, en modo "drag". Se usa para distinguir un CLICK puro (sin
+   * movimiento apreciable) de un DRAG real (arrastre desde un punto a otro).
+   * - Click (< 5px): NO aplica zoom; limpia refAreaLeft/Right para que el
+   *   onClick del <Cell> (toggleProvider) se dispare sin que quede un área
+   *   visual de selección residual.
+   * - Drag (>= 5px): aplica zoom vía applyZoomFromDrag() (que a su vez
+   *   valida su propio umbral del 5% del dominio).
+   * Se usa useRef (no state) para no disparar re-render en cada mousemove y
+   * porque no afecta el render: solo vive entre mouseDown y mouseUp.
+   * Solo aplica a interactionMode === "drag"; el modo "brush" no se toca.
+   */
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   /**
    * Estado de zoom del Brush (modo "brush"). Indices [start, end] del array
@@ -318,6 +335,19 @@ export function ChartExpandDialog({
     // En modo "brush" no hacemos nada: el zoom vive en el Brush nativo.
     if (interactionMode === "brush") return;
     if (!e) return;
+    // Guardar coordenadas iniciales del mouse en píxeles (Recharts expone
+    // e.activeCoordinate?.x/y). Se usan en mouseUp para decidir click vs
+    // drag. Si el evento no trae coordenadas (p. ej. el click cae fuera del
+    // plot), no podemos medir el umbral, así que dejamos el ref en null y
+    // seguimos el path histórico para no romper el zoom existente.
+    const px = e.activeCoordinate?.x;
+    const py = e.activeCoordinate?.y;
+    if (typeof px === "number" && typeof py === "number") {
+      dragStartRef.current = { x: px, y: py };
+    } else {
+      dragStartRef.current = null;
+    }
+    // Comportamiento histórico: marca el extremo inicial del área de drag.
     const x = extractX(e);
     if (x === null) return;
     setRefAreaLeft(x);
@@ -333,9 +363,39 @@ export function ChartExpandDialog({
     setRefAreaRight(x);
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: any) => {
     // En modo "brush" no hacemos nada.
     if (interactionMode === "brush") return;
+    // Umbral de movimiento en píxeles para distinguir click de drag.
+    // - >= 5px → DRAG → applyZoomFromDrag() (que tiene su propio umbral del
+    //   5% del dominio y decide si el rango es significativo).
+    // - < 5px → CLICK → NO aplica zoom. Limpia refAreaLeft/Right para que no
+    //   quede área visual residual de selección. El onClick del <Cell>
+    //   (toggleProvider) se dispara después naturalmente sobre el punto.
+    const UMBRAL_PIX = 5;
+    const start = dragStartRef.current;
+    const px = e?.activeCoordinate?.x;
+    const py = e?.activeCoordinate?.y;
+    if (
+      start !== null &&
+      typeof px === "number" &&
+      typeof py === "number"
+    ) {
+      const dx = px - start.x;
+      const dy = py - start.y;
+      const distancia = Math.sqrt(dx * dx + dy * dy);
+      if (distancia < UMBRAL_PIX) {
+        // Click puro: descartar selección y no aplicar zoom.
+        setRefAreaLeft(null);
+        setRefAreaRight(null);
+        dragStartRef.current = null;
+        return;
+      }
+    }
+    // Side note: si start es null (sin coordenadas al hacer down), cae aquí
+    // y conserva el comportamiento histórico (applyZoomFromDrag). Es lo más
+    // seguro para no romper el zoom existente en casos atípicos.
+    dragStartRef.current = null;
     applyZoomFromDrag();
   };
 

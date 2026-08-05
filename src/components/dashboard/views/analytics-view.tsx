@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 import {
   Card,
   CardContent,
@@ -27,13 +27,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, TrendingUp, Maximize2 } from "lucide-react";
+import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, Maximize2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import type { LicenseType } from "@/lib/types";
 import { computeBlendedUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ChartExpandDialog } from "../charts/chart-expand-dialog";
+import { FichaTecnicaModal } from "../ficha-tecnica-modal";
 
 export function ScatterProviderLegend({
   data,
@@ -125,7 +126,11 @@ const LICENSE_COLORS: Record<string, string> = {
 };
 
 export function AnalyticsView() {
-  const { data, isLoading } = useDashboardData();
+  // Payload ligero (?fields=summary): mismo API que useDashboardData, solo
+  // cambia la fuente. Los campos que consume esta vista (releaseDate,
+  // intelligenceIndex, provider, precios, contextWindow, speedTps, freeAccess,
+  // hfDownloads/hfLikes, etc.) están todos incluidos en el summary.
+  const { data, isLoading } = useDashboardSummary();
   const [timeRes, setTimeRes] = useState<"week" | "month" | "quarter" | "year">("quarter");
   const [activeProviders, setActiveProviders] = useState<string[]>([]);
   // Gráfico abierto en modal (null = ninguno). Montaje condicional
@@ -137,6 +142,11 @@ export function AnalyticsView() {
     | "eficiencia"
     | null
   >(null);
+  // Ficha técnica abierta en modo NO expandido (doble click sobre un punto
+  // de un chart no expandido). null = ficha cerrada. El modal expandido
+  // tiene su propio estado fichaModelId local dentro del ChartExpandDialog.
+  const [fichaModelIdNoExpandido, setFichaModelIdNoExpandido] =
+    useState<string | null>(null);
   const [visibleColsHeatmap, setVisibleColsHeatmap] = useState<Record<string, boolean>>({
     priceAvg: true,
     iiAvg: true,
@@ -920,164 +930,9 @@ export function AnalyticsView() {
         </CardContent>
       </Card>
 
-      {/* 2.5 Evolución de Precios de LLMs */}
-      {data.priceIndex && data.priceIndex.length > 0 && (
-        <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
-                  <TrendingUp className="h-4 w-4 text-[var(--brand-primary)]" />
-                  Evolución de Precios de LLMs (BenchLM Token Price Index)
-                  <span
-                    className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold cursor-help"
-                    style={{
-                      backgroundColor: "var(--bg-overlay)",
-                      color: "var(--text-secondary)",
-                    }}
-                    title="Frontier = modelos top-tier más caros (GPT-5.5, Claude Opus) · Mid = gama media (Claude Sonnet, Gemini Pro) · Budget = económicos (<$1/M). El índice base es marzo 2023 = 100. Frontier ha caído 88%."
-                  >
-                    i
-                  </span>
-                </CardTitle>
-                <CardDescription className="text-xs mt-1">
-                  Base mar 2023 = 100 · caída = más barato ·{" "}
-                  {data.priceIndex.length} meses
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div data-chart-id="evolucion-precios">
-            <ResponsiveContainer width="100%" height={300} debounce={50}>
-              <LineChart
-                data={data.priceIndex}
-                margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
-              >
-                <CartesianGrid
-                  stroke="var(--border-default)"
-                  strokeDasharray="3 3"
-                />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--border-default)" }}
-                  minTickGap={20}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--border-default)" }}
-                  width={45}
-                />
-                <RechartsTooltip
-                  isAnimationActive={false}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0]?.payload as {
-                      month: string;
-                      frontier: number | null;
-                      frontierMedian: number | null;
-                      mid: number | null;
-                      midMedian: number | null;
-                      budget: number | null;
-                      budgetMedian: number | null;
-                    };
-                    if (!d) return null;
-                    return (
-                      <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[260px]">
-                        <div className="font-semibold text-[var(--text-primary)] mb-1.5">
-                          {label}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="frontier" title="Tier frontier" style={{ backgroundColor: "var(--color-error)" }} />
-                              Frontier
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.frontier != null ? d.frontier.toFixed(1) : "—"}
-                              {d.frontierMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.frontierMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="mid" title="Tier mid" style={{ backgroundColor: "var(--color-warning)" }} />
-                              Mid
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.mid != null ? d.mid.toFixed(1) : "—"}
-                              {d.midMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.midMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                              <span className="h-2 w-2 rounded-full" aria-label="budget" title="Tier budget" style={{ backgroundColor: "var(--color-success)" }} />
-                              Budget
-                            </span>
-                            <span className="num text-[var(--text-primary)]">
-                              {d.budget != null ? d.budget.toFixed(1) : "—"}
-                              {d.budgetMedian != null && (
-                                <span className="text-[var(--text-secondary)] ml-1">
-                                  (${d.budgetMedian.toFixed(2)}/M mediana)
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }}
-                />
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
-                  iconType="circle"
-                />
-                <Line
-                  type="monotone"
-                  dataKey="frontier"
-                  name="Frontier"
-                  stroke="var(--color-error)"
-                  strokeWidth={2.5}
-                  dot={false}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="mid"
-                  name="Mid"
-                  stroke="var(--color-warning)"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="budget"
-                  name="Budget"
-                  stroke="var(--color-success)"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                />
-              </LineChart>
-            </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Evolución de Precios de LLMs: removido — dependía de data.priceIndex
+          (series de 41 meses del índice BenchLM), un campo de nivel dashboard
+          que el payload ligero (fields=summary) ya no transporta. */}
 
       {/* Open Weights vs Propietario */}
       <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
@@ -1291,23 +1146,50 @@ export function AnalyticsView() {
                               {d.y} TPS
                             </span>
                           </div>
+                        <div>
+                          Velocidad:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y} TPS
+                          </span>
+                        </div>
+                        <div>
+                          Velocidad:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y} TPS
+                          </span>
+                        </div>
+                        <div>
+                          Velocidad:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.y} TPS
+                          </span>
+                        </div>
+                        <div>
+                          Intelligence Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.z}
+                          </span>
                         </div>
                       </div>
-                    );
-                  }}
-                />
-                <Scatter
-                  data={contextSpeedData}
-                  isAnimationActive={false}
-                >
-                  {contextSpeedData.map((entry: any, i: number) => (
-                    <Cell
-                      key={i}
+                    </div>
+                  );
+                }}
+              />
+              <Scatter
+                data={efficiencyData}
+                isAnimationActive={false}
+              >
+                {efficiencyData.map((entry, i) => (
+                  <Cell
+                    key={i}
                       fill={entry.color}
                       fillOpacity={getPointOpacity(entry.provider)}
                       stroke={entry.color}
                       strokeOpacity={getPointOpacity(entry.provider)}
                       onClick={() => toggleProvider(entry.provider)}
+                      onDoubleClick={() =>
+                        setFichaModelIdNoExpandido(entry.id)
+                      }
                       style={{ cursor: "pointer" }}
                     />
                   ))}
@@ -1416,6 +1298,12 @@ export function AnalyticsView() {
                               {d.y}
                             </span>
                           </div>
+                          <div>
+                            Intelligence Index:{" "}
+                            <span className="num text-[var(--text-primary)]">
+                              {d.z}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1433,6 +1321,9 @@ export function AnalyticsView() {
                       stroke={entry.color}
                       strokeOpacity={getPointOpacity(entry.provider)}
                       onClick={() => toggleProvider(entry.provider)}
+                      onDoubleClick={() =>
+                        setFichaModelIdNoExpandido(entry.id)
+                      }
                       style={{ cursor: "pointer" }}
                     />
                   ))}
@@ -1561,6 +1452,9 @@ export function AnalyticsView() {
                     stroke={entry.color}
                     strokeOpacity={getPointOpacity(entry.provider)}
                     onClick={() => toggleProvider(entry.provider)}
+                    onDoubleClick={() =>
+                      setFichaModelIdNoExpandido(entry.id)
+                    }
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -1975,7 +1869,8 @@ export function AnalyticsView() {
                     fillOpacity={getPointOpacity(entry.provider)}
                     stroke={entry.color}
                     strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onPointClick(entry.id)}
+                    onClick={() => ctx.onToggleProvider(entry.provider)}
+                    onDoubleClick={() => ctx.onPointClick(entry.id)}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -2071,6 +1966,12 @@ export function AnalyticsView() {
                             {d.y}
                           </span>
                         </div>
+                        <div>
+                          Intelligence Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.z}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2087,7 +1988,8 @@ export function AnalyticsView() {
                     fillOpacity={getPointOpacity(entry.provider)}
                     stroke={entry.color}
                     strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onPointClick(entry.id)}
+                    onClick={() => ctx.onToggleProvider(entry.provider)}
+                    onDoubleClick={() => ctx.onPointClick(entry.id)}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -2203,14 +2105,28 @@ export function AnalyticsView() {
                     fillOpacity={getPointOpacity(entry.provider)}
                     stroke={entry.color}
                     strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onPointClick(entry.id)}
+                    onClick={() => ctx.onToggleProvider(entry.provider)}
+                    onDoubleClick={() => ctx.onPointClick(entry.id)}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
               </Scatter>
               {ctx.refArea}
-            </ScatterChart>
-          )}
+             </ScatterChart>
+           )}
+         />
+       )}
+
+      {/* Ficha técnica (doble click en modo NO expandido). Los ScatterCharts
+          no modales no comparten el fichaModelId del ChartExpandDialog, así
+          que este modal se renderiza fuera de la grilla cuando el usuario
+          hace doble click en un punto del chart no expandido. */}
+      {fichaModelIdNoExpandido && (
+        <FichaTecnicaModal
+          model={
+            data.models.find((m) => m.id === fichaModelIdNoExpandido) ?? null
+          }
+          onClose={() => setFichaModelIdNoExpandido(null)}
         />
       )}
     </div>
