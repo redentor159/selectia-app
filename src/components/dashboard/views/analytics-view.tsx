@@ -27,14 +27,14 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, Maximize2 } from "lucide-react";
+import { Columns, Grid3x3, LineChart as LineIcon, BarChart3, TrendingUp, Maximize2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import type { LicenseType } from "@/lib/types";
 import { computeBlendedUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
+import { prefetchFichaForModel } from "../ficha-tecnica/hf-cache";
 
 export function ScatterProviderLegend({
   data,
@@ -569,49 +569,52 @@ export function AnalyticsView() {
 
   const openWeightsData = useMemo(() => {
     if (!data) return [];
-    const groups = new Map<string, typeof data.models>();
+    // Agrupa por proveedor normalizando mayúsculas (nvidia == NVIDIA) para no
+    // dividir el mismo proveedor en varias barras cuando los datos vivos
+    // (OpenRouter) y el catálogo estático difieren en el casing.
+    // La etiqueta usa la variante más frecuente del nombre del proveedor.
+    const groups = new Map<
+      string,
+      { models: typeof data.models; displayCounts: Map<string, number> }
+    >();
     for (const m of data.models) {
-      if (!groups.has(m.provider)) groups.set(m.provider, []);
-      groups.get(m.provider)!.push(m);
+      const key = (m.provider ?? "").trim().toLowerCase();
+      if (!key) continue;
+      let g = groups.get(key);
+      if (!g) {
+        g = { models: [], displayCounts: new Map() };
+        groups.set(key, g);
+      }
+      g.models.push(m);
+      const display = m.provider.trim();
+      g.displayCounts.set(display, (g.displayCounts.get(display) ?? 0) + 1);
     }
     return Array.from(groups.entries())
-      .map(([provider, models]) => ({
-        provider,
-        open: models.filter((m) => m.openWeights).length,
-        closed: models.filter((m) => !m.openWeights).length,
-        maxII: Math.max(0, ...models.map((m) => m.intelligenceIndex ?? 0)),
-      }))
-      .sort((a, b) => b.maxII - a.maxII); // mayor Intelligence Index primero
-  }, [data]);
-
-  const licenseData = useMemo(() => {
-    if (!data) return [];
-    const LICENSE_TYPES: LicenseType[] = [
-      "commercial-open",
-      "open-source-full",
-      "conditional",
-      "api-paid",
-      "research-only",
-    ];
-    const groups = new Map<string, typeof data.models>();
-    for (const m of data.models) {
-      if (!groups.has(m.provider)) groups.set(m.provider, []);
-      groups.get(m.provider)!.push(m);
-    }
-    return Array.from(groups.entries())
-      .map(([provider, models]) => {
-        const row: Record<string, number | string> = { provider };
-        for (const lt of LICENSE_TYPES) {
-          const count = models.filter((model) => model.license === lt).length;
-          row[lt] = (count / models.length) * 100;
+      .map(([key, g]) => {
+        let provider = key;
+        let best = -1;
+        for (const [name, count] of g.displayCounts) {
+          if (count > best) {
+            best = count;
+            provider = name;
+          }
         }
-        row.maxII = Math.max(0, ...models.map((m) => m.intelligenceIndex ?? 0));
-        return row;
+        const licenseCounts = new Map<string, number>();
+        for (const model of g.models) {
+          const lkey = model.licenseName || model.license || "Sin dato";
+          licenseCounts.set(lkey, (licenseCounts.get(lkey) ?? 0) + 1);
+        }
+        return {
+          provider,
+          open: g.models.filter((m) => m.openWeights).length,
+          closed: g.models.filter((m) => !m.openWeights).length,
+          licenses: Array.from(licenseCounts.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count),
+          maxII: Math.max(0, ...g.models.map((m) => m.intelligenceIndex ?? 0)),
+        };
       })
-      .sort(
-        (a, b) =>
-          (b.maxII as number) - (a.maxII as number) // mayor Intelligence Index primero
-      );
+      .sort((a, b) => b.maxII - a.maxII); // mayor Intelligence Index primero
   }, [data]);
 
   if (isLoading || !data) {
@@ -632,7 +635,7 @@ export function AnalyticsView() {
           Analytics · Vista Estratégica
         </h1>
         <p className="text-sm text-[var(--text-secondary)]">
-          Heatmap de proveedores · timeline de evolución · distribución de licencias
+          Heatmap de proveedores · timeline de evolución · open weights vs propietario
         </p>
       </header>
 
@@ -930,9 +933,165 @@ export function AnalyticsView() {
         </CardContent>
       </Card>
 
-      {/* Evolución de Precios de LLMs: removido — dependía de data.priceIndex
-          (series de 41 meses del índice BenchLM), un campo de nivel dashboard
-          que el payload ligero (fields=summary) ya no transporta. */}
+      {/* 2.5 Evolución de Precios de LLMs. data.priceIndex viaja en el payload
+          ligero (?fields=summary) para que Analytics conserve este chart. */}
+      {data.priceIndex && data.priceIndex.length > 0 && (
+        <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
+                  <TrendingUp className="h-4 w-4 text-[var(--brand-primary)]" />
+                  Evolución de Precios de LLMs (BenchLM Token Price Index)
+                  <span
+                    className="inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold cursor-help"
+                    style={{
+                      backgroundColor: "var(--bg-overlay)",
+                      color: "var(--text-secondary)",
+                    }}
+                    title="Frontier = modelos top-tier más caros (GPT-5.5, Claude Opus) · Mid = gama media (Claude Sonnet, Gemini Pro) · Budget = económicos (<$1/M). El índice base es marzo 2023 = 100. Frontier ha caído 88%."
+                  >
+                    i
+                  </span>
+                </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  Base mar 2023 = 100 · caída = más barato ·{" "}
+                  {data.priceIndex.length} meses
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div data-chart-id="evolucion-precios">
+            <ResponsiveContainer width="100%" height={300} debounce={50}>
+              <LineChart
+                data={data.priceIndex}
+                margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
+              >
+                <CartesianGrid
+                  stroke="var(--border-default)"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  minTickGap={20}
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "var(--border-default)" }}
+                  width={45}
+                />
+                <RechartsTooltip
+                  isAnimationActive={false}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload as {
+                      month: string;
+                      frontier: number | null;
+                      frontierMedian: number | null;
+                      mid: number | null;
+                      midMedian: number | null;
+                      budget: number | null;
+                      budgetMedian: number | null;
+                    };
+                    if (!d) return null;
+                    return (
+                      <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs max-w-[260px]">
+                        <div className="font-semibold text-[var(--text-primary)] mb-1.5">
+                          {label}
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="frontier" title="Tier frontier" style={{ backgroundColor: "var(--color-error)" }} />
+                              Frontier
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.frontier != null ? d.frontier.toFixed(1) : "—"}
+                              {d.frontierMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.frontierMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="mid" title="Tier mid" style={{ backgroundColor: "var(--color-warning)" }} />
+                              Mid
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.mid != null ? d.mid.toFixed(1) : "—"}
+                              {d.midMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.midMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <span className="h-2 w-2 rounded-full" aria-label="budget" title="Tier budget" style={{ backgroundColor: "var(--color-success)" }} />
+                              Budget
+                            </span>
+                            <span className="num text-[var(--text-primary)]">
+                              {d.budget != null ? d.budget.toFixed(1) : "—"}
+                              {d.budgetMedian != null && (
+                                <span className="text-[var(--text-secondary)] ml-1">
+                                  (${d.budgetMedian.toFixed(2)}/M mediana)
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  wrapperStyle={{ fontSize: 11, paddingBottom: 8 }}
+                  iconType="circle"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="frontier"
+                  name="Frontier"
+                  stroke="var(--color-error)"
+                  strokeWidth={2.5}
+                  dot={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="mid"
+                  name="Mid"
+                  stroke="var(--color-warning)"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="budget"
+                  name="Budget"
+                  stroke="var(--color-success)"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Open Weights vs Propietario */}
       <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
@@ -1006,6 +1165,24 @@ export function AnalyticsView() {
                             {d.open + d.closed}
                           </span>
                         </div>
+                        {d.licenses && d.licenses.length > 0 && (
+                          <div className="pt-1 mt-1 border-t border-[var(--border-default)]">
+                            <div className="text-[10px] uppercase tracking-wide opacity-70">
+                              Licencias
+                            </div>
+                            {d.licenses.map((l) => (
+                              <div
+                                key={l.name}
+                                className="flex justify-between gap-3"
+                              >
+                                <span className="truncate">{l.name}</span>
+                                <span className="num text-[var(--text-primary)]">
+                                  ×{l.count}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -1146,26 +1323,8 @@ export function AnalyticsView() {
                               {d.y} TPS
                             </span>
                           </div>
-                        <div>
-                          Velocidad:{" "}
-                          <span className="num text-[var(--text-primary)]">
-                            {d.y} TPS
-                          </span>
-                        </div>
-                        <div>
-                          Velocidad:{" "}
-                          <span className="num text-[var(--text-primary)]">
-                            {d.y} TPS
-                          </span>
-                        </div>
-                        <div>
-                          Velocidad:{" "}
-                          <span className="num text-[var(--text-primary)]">
-                            {d.y} TPS
-                          </span>
-                        </div>
-                        <div>
-                          Intelligence Index:{" "}
+                          <div>
+                            Intelligence Index:{" "}
                           <span className="num text-[var(--text-primary)]">
                             {d.z}
                           </span>
@@ -1176,10 +1335,10 @@ export function AnalyticsView() {
                 }}
               />
               <Scatter
-                data={efficiencyData}
+                data={contextSpeedData}
                 isAnimationActive={false}
               >
-                {efficiencyData.map((entry, i) => (
+                {contextSpeedData.map((entry, i) => (
                   <Cell
                     key={i}
                       fill={entry.color}
@@ -1190,6 +1349,11 @@ export function AnalyticsView() {
                       onDoubleClick={() =>
                         setFichaModelIdNoExpandido(entry.id)
                       }
+                      onMouseEnter={() => {
+                        const m =
+                          data.models.find((mm) => mm.id === entry.id) ?? null;
+                        prefetchFichaForModel(m);
+                      }}
                       style={{ cursor: "pointer" }}
                     />
                   ))}
@@ -1324,6 +1488,11 @@ export function AnalyticsView() {
                       onDoubleClick={() =>
                         setFichaModelIdNoExpandido(entry.id)
                       }
+                      onMouseEnter={() => {
+                        const m =
+                          data.models.find((mm) => mm.id === entry.id) ?? null;
+                        prefetchFichaForModel(m);
+                      }}
                       style={{ cursor: "pointer" }}
                     />
                   ))}
@@ -1435,6 +1604,12 @@ export function AnalyticsView() {
                             {d.y} TPS
                           </span>
                         </div>
+                        <div>
+                          Intelligence Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.z}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1455,129 +1630,16 @@ export function AnalyticsView() {
                     onDoubleClick={() =>
                       setFichaModelIdNoExpandido(entry.id)
                     }
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
               </Scatter>
             </ScatterChart>
-          </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Distribución de licencias por proveedor */}
-      <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-1.5">
-            <BarChart3 className="h-4 w-4 text-[var(--color-warning)]" />
-            Distribución de licencias por proveedor
-          </CardTitle>
-          <CardDescription className="text-xs">
-            100% apilado por proveedor · proporción de licencias open / condicional
-            / pago
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div data-chart-id="distribucion-licencias">
-          <ResponsiveContainer width="100%" height={320} debounce={50}>
-            <BarChart
-              data={licenseData}
-              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
-            >
-              <CartesianGrid
-                stroke="var(--border-default)"
-                strokeDasharray="3 3"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="provider"
-                tick={{ fill: "var(--text-secondary)", fontSize: 10 }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border-default)" }}
-                angle={-30}
-                textAnchor="end"
-                height={60}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border-default)" }}
-                tickFormatter={(v) => `${v}%`}
-                width={36}
-              />
-              <RechartsTooltip
-                cursor={{ fill: "var(--bg-overlay)" }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  return (
-                    <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs">
-                      <div className="font-semibold text-[var(--text-primary)] mb-1.5">
-                        {label}
-                      </div>
-                      <div className="space-y-0.5">
-                        {payload
-                          .filter((p) => (p.value as number) > 0)
-                          .map((p, idx) => (
-                            <div
-                              key={`${p.name}-${idx}`}
-                              className="flex items-center gap-2"
-                            >
-                              <span
-                                className="h-2 w-2 rounded-full"
-                                style={{
-                                  backgroundColor: p.color,
-                                }}
-                              />
-                              <span className="text-[var(--text-secondary)]">
-                                {p.name}
-                              </span>
-                              <span className="num text-[var(--text-primary)] ml-auto">
-                                {(p.value as number).toFixed(0)}%
-                              </span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  );
-                }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: 11 }}
-                iconType="circle"
-                iconSize={8}
-              />
-              <Bar
-                dataKey="commercial-open"
-                stackId="a"
-                name="Comercial Libre"
-                fill="#00d66f"
-              />
-              <Bar
-                dataKey="open-source-full"
-                stackId="a"
-                name="Open Source"
-                fill="#4ea7fc"
-              />
-              <Bar
-                dataKey="conditional"
-                stackId="a"
-                name="Condicional"
-                fill="#f0bf00"
-              />
-              <Bar
-                dataKey="api-paid"
-                stackId="a"
-                name="Solo API Pago"
-                fill="#eb5757"
-              />
-              <Bar
-                dataKey="research-only"
-                stackId="a"
-                name="Solo Investigación"
-                fill="#62666d"
-              />
-            </BarChart>
           </ResponsiveContainer>
           </div>
         </CardContent>
@@ -1853,6 +1915,12 @@ export function AnalyticsView() {
                             {d.y} TPS
                           </span>
                         </div>
+                        <div>
+                          Intelligence Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.z}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1871,6 +1939,11 @@ export function AnalyticsView() {
                     strokeOpacity={getPointOpacity(entry.provider)}
                     onClick={() => ctx.onToggleProvider(entry.provider)}
                     onDoubleClick={() => ctx.onPointClick(entry.id)}
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -1990,6 +2063,11 @@ export function AnalyticsView() {
                     strokeOpacity={getPointOpacity(entry.provider)}
                     onClick={() => ctx.onToggleProvider(entry.provider)}
                     onDoubleClick={() => ctx.onPointClick(entry.id)}
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -2089,6 +2167,12 @@ export function AnalyticsView() {
                             {d.y} TPS
                           </span>
                         </div>
+                        <div>
+                          Intelligence Index:{" "}
+                          <span className="num text-[var(--text-primary)]">
+                            {d.z}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -2107,6 +2191,11 @@ export function AnalyticsView() {
                     strokeOpacity={getPointOpacity(entry.provider)}
                     onClick={() => ctx.onToggleProvider(entry.provider)}
                     onDoubleClick={() => ctx.onPointClick(entry.id)}
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}

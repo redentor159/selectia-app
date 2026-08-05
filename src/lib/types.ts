@@ -336,6 +336,10 @@ export interface DashboardData {
     tier: string;
     // 5th AA HTTP header (gap #3) — seconds to wait before retrying, present on 429 responses
     retryAfter?: number | null;
+    // B3 — true cuando los headers x-ratelimit-* provienen de la respuesta real
+    // de AA; false cuando se usó un fallback/seed (la UI no debe mostrar los
+    // números como datos reales).
+    quotaFromHeaders?: boolean;
   };
   generatedAt: string;
   arenaFetchedAt: string;
@@ -359,6 +363,83 @@ export interface DashboardData {
   // Source: https://benchlm.ai/data/leaderboard.json → counts.categories
   // Shows how many rankingEligible models have data per category: {agentic:103, coding:101, ...}
   benchlmCategoryCoverage?: Record<string, number>;
+}
+
+// ================================================================
+// Modo summary — payload ligero para las vistas Resumen y Analytics
+// ================================================================
+// El endpoint /api/dashboard?fields=summary devuelve solo estas claves
+// por modelo (más el envoltorio DashboardSummary). Excluye los campos
+// or* pesados (descripciones, precios por proveedor, etc.), benchlm*,
+// zeroeval* y los hf* pesados (gated, safetensors, gguf, etc.) que las
+// dos vistas no consumen. Única excepción: orInputModalities, el único
+// campo or* que la vista Resumen usa de verdad (gráfico Modelos por
+// Modalidad) y es barato (~3 KB). Si una vista necesita un campo nuevo,
+// se agrega aquí y el pick se propaga al endpoint y a la proyección
+// client-side.
+export const SUMMARY_MODEL_PICK_KEYS = [
+  "name",
+  "id",
+  "provider",
+  "providerDomain",
+  "providerColor",
+  "family",
+  "license",
+  "licenseName",
+  "priceInputUsd",
+  "priceOutputUsd",
+  "priceCacheHitUsd",
+  "priceCacheWriteUsd",
+  "contextWindow",
+  "contextWindowSource",
+  "maxOutput",
+  "intelligenceIndex",
+  "codingIndex",
+  "agenticIndex",
+  "speedTps",
+  "ttftMs",
+  "elo",
+  "eloCi",
+  "eloVotes",
+  "capabilities",
+  "knowledgeCutoff",
+  "releaseDate",
+  "parameters",
+  "isMoE",
+  "freeAccess",
+  "inferenceProviders",
+  "openWeights",
+  "ollamaAvailable",
+  "active",
+  "hfRepoId",
+  "hfDownloads",
+  "hfLikes",
+  // Único campo or* conservado: alimenta el gráfico "Modelos por Modalidad"
+  // de la vista Resumen (arrays cortos de strings, ~3 KB en total).
+  "orInputModalities",
+] as const satisfies readonly (keyof AIModel)[];
+
+export type SummaryAIModel = Pick<
+  AIModel,
+  (typeof SUMMARY_MODEL_PICK_KEYS)[number]
+>;
+
+export interface DashboardSummary {
+  models: SummaryAIModel[];
+  currencies: CurrencyRate[];
+  exchangeRateProvider: string;
+  exchangeRateUpdated: string;
+  exchangeRateNextUpdate: string;
+  sources: SourceHealth[];
+  aaQuota: DashboardData["aaQuota"];
+  generatedAt: string;
+  arenaFetchedAt: string;
+  // Series de 41 meses del índice de precios BenchLM (chart "Evolución de
+  // Precios de LLMs" de Analytics) — opcional, igual que en DashboardData.
+  priceIndex?: PriceIndexPoint[];
+  // 28 estadísticas citables de mercado (panel "Titulares del Mercado" de
+  // Resumen) — opcional, igual que en DashboardData.
+  benchlmStats?: BenchlmStat[];
 }
 
 export interface HRETOPSISResult {

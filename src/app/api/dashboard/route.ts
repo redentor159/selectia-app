@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
-import { fetchDashboardData, forceRefreshDashboardData } from "@/lib/orchestrator";
+import {
+  fetchDashboardData,
+  forceRefreshDashboardData,
+  projectSummary,
+} from "@/lib/orchestrator";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +35,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "1";
   const customKey = resolveCustomKey(request);
+  const fields = searchParams.get("fields");
 
   if (force) {
     cleanOldRequests(forceRequests);
@@ -67,7 +72,12 @@ export async function GET(request: Request) {
       ? await forceRefreshDashboardData(customKey)
       : await fetchDashboardData(false, customKey);
 
-    return NextResponse.json(data, {
+    // Modo ligero: ?fields=summary proyecta el payload con projectSummary
+    // (solo las claves base que usan Resumen y Analytics). El resto del
+    // manejo (rate limit, revalidate, cache headers) no cambia.
+    const payload = fields === "summary" ? projectSummary(data) : data;
+
+    return NextResponse.json(payload, {
       headers: {
         "Cache-Control": force || customKey ? "no-store" : "public, s-maxage=300, stale-while-revalidate=600",
         "X-Data-Source": force ? "live-force" : "live-cached",

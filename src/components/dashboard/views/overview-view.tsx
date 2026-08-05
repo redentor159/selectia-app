@@ -57,6 +57,7 @@ import { GerenteView } from "./gerente-view";
 import { AnalyticsView, ScatterProviderLegend } from "./analytics-view";
 import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
+import { prefetchFichaForModel } from "../ficha-tecnica/hf-cache";
 
 const EXAMPLE_QUERIES = [
   "Redactar correo a cliente sobre demora en entrega",
@@ -502,6 +503,11 @@ function IngenieroOverview() {
                       onDoubleClick={() =>
                         setFichaModelIdNoExpandido(entry.id)
                       }
+                      onMouseEnter={() => {
+                        const m =
+                          data.models.find((mm) => mm.id === entry.id) ?? null;
+                        prefetchFichaForModel(m);
+                      }}
                       style={{ cursor: "pointer" }}
                     />
                   ))}
@@ -581,25 +587,96 @@ function IngenieroOverview() {
         </Card>
       </section>
 
-      {/* Quick stats — la columna de Modalidades (2/3) se removió: dependía de
-          orInputModalities (campo or* de OpenRouter) que el payload ligero
-          (fields=summary) ya no transporta. Las dos tarjetas económicas y de
-          velocidad se mantienen ocupando el ancho disponible. */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <QuickModelCard
-          title="Más económico con pago"
-          icon={DollarSign}
-          color="var(--color-success)"
-          model={kpis!.cheapest}
-          currencyMeta={currencyMeta}
-        />
-        <QuickModelCard
-          title="Más rápido en inferencia"
-          icon={Zap}
-          color="var(--color-warning)"
-          model={kpis!.fastest}
-          currencyMeta={currencyMeta}
-        />
+      {/* Quick stats (1/3) + Modelos por Modalidad (2/3) */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left column (1/3): Quick stats stacked vertically */}
+        <div className="flex flex-col gap-4">
+          <QuickModelCard
+            title="Más económico con pago"
+            icon={DollarSign}
+            color="var(--color-success)"
+            model={kpis!.cheapest}
+            currencyMeta={currencyMeta}
+          />
+          <QuickModelCard
+            title="Más rápido en inferencia"
+            icon={Zap}
+            color="var(--color-warning)"
+            model={kpis!.fastest}
+            currencyMeta={currencyMeta}
+          />
+        </div>
+
+        {/* Right column (2/3): Modalidades chart */}
+        {modalitiesData.length > 0 && (
+          <div className="lg:col-span-2 flex flex-col h-full">
+            <Card className="bg-[var(--bg-surface)] border-[var(--border-default)] flex-1 flex flex-col">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold tracking-tight flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-[var(--color-indigo)]" />
+                  Modelos por Modalidad
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Capacidades de input soportadas a través de {data.models.filter(m => (m.orInputModalities?.length ?? 0) > 0).length} modelos (OpenRouter)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col justify-center min-h-[220px]">
+                <div data-chart-id="modelos-por-modalidad" className="h-full w-full">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
+                  <BarChart
+                    data={modalitiesData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 32, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid stroke="var(--border-default)" strokeDasharray="3 3" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--border-default)" }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--border-default)" }}
+                      width={60}
+                    />
+                    <RechartsTooltip
+                      cursor={{ fill: "var(--bg-overlay)" }}
+                      isAnimationActive={false}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as { name: string; value: number };
+                        return (
+                          <div className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-2.5 shadow-lg text-xs">
+                            <div className="font-semibold text-[var(--text-primary)]">{d.name}</div>
+                            <div className="text-[var(--text-secondary)] mt-0.5">
+                              <span className="num text-[var(--text-primary)]">{d.value}</span> modelos
+                            </div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="value" radius={[0, 3, 3, 0]} barSize={20} isAnimationActive={false}>
+                      {modalitiesData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
+                      ))}
+                      <LabelList
+                        dataKey="value"
+                        position="right"
+                        style={{ fill: "var(--text-secondary)", fontSize: 11 }}
+                        className="num"
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </section>
 
       {/* Gráfico 7: Adopción vs Calidad — scatter downloads (log) vs Intelligence Index */}
@@ -702,9 +779,39 @@ function IngenieroOverview() {
         </section>
       )}
 
-      {/* Titulares del Mercado (BenchLM Stats): removido — dependía de
-          data.benchlmStats, un campo de nivel dashboard que el payload
-          ligero (fields=summary) ya no transporta. */}
+      {/* BenchLM Stats Panel (Titulares del Mercado) — sin Card, variante FINAL.
+          Debajo de Adopción vs Calidad, antes de Data freshness (C1, CODIGO_LISTO_PARA_PEGAR.md:489-521).
+          benchlmStats viaja en el payload ligero (?fields=summary). */}
+      {benchlmStats.length > 0 && (
+        <section className="flex flex-col gap-3 mt-4 mb-4">
+          <h2 className="text-sm font-medium text-[var(--text-secondary)] flex items-center gap-1.5 px-1">
+            <Activity className="h-4 w-4" />
+            Titulares del Mercado (BenchLM Stats)
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {benchlmStats.map(stat => (
+              <a
+                key={stat.statId}
+                href={stat.anchorUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative flex flex-col justify-between rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 hover:border-[var(--brand-primary-subtle)] hover:bg-[var(--bg-elevated)] transition-colors"
+              >
+                <div className="text-xs font-medium text-[var(--text-secondary)] mb-2 line-clamp-1 pr-4">
+                  {stat.label}
+                </div>
+                <div className="text-lg font-semibold text-[var(--text-primary)] mb-1 leading-tight">
+                  {stat.value}
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] line-clamp-2">
+                  {stat.sentence}
+                </div>
+                <ExternalLink className="absolute top-4 right-4 h-3 w-3 text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Data freshness */}
       <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-elevated)] px-4 py-3">
@@ -818,6 +925,11 @@ function IngenieroOverview() {
                     strokeWidth={1}
                     onClick={() => ctx.onToggleProvider(entry.provider)}
                     onDoubleClick={() => ctx.onPointClick(entry.id)}
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}
@@ -907,6 +1019,11 @@ function IngenieroOverview() {
                     strokeWidth={1}
                     onClick={() => ctx.onToggleProvider(entry.provider)}
                     onDoubleClick={() => ctx.onPointClick(entry.id)}
+                    onMouseEnter={() => {
+                      const m =
+                        data.models.find((mm) => mm.id === entry.id) ?? null;
+                      prefetchFichaForModel(m);
+                    }}
                     style={{ cursor: "pointer" }}
                   />
                 ))}

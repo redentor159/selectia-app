@@ -76,7 +76,7 @@ const NAV_SECTIONS: NavSection[] = [
         id: "analytics",
         label: "Analytics",
         icon: LineChart,
-        description: "Heatmap + timeline + licencias",
+        description: "Heatmap + timeline + open weights vs propietario",
       },
       {
         id: "simulador-roi",

@@ -54,33 +54,12 @@ import { BenchlmProfileSection } from "./ficha-tecnica/benchlm-section";
 import { ZeroevalReliabilitySection } from "./ficha-tecnica/zeroeval-section";
 import { OpenRouterSection } from "./ficha-tecnica/openrouter-section";
 import { ModelLifecycleSection } from "./ficha-tecnica/model-lifecycle-section";
-
-
-interface HfModelDetails {
-  id: string;
-  spaces: number;
-  spacesSample: string[];
-  inference: string | null;
-  modelIndex: any;
-  widgetData: any[] | null;
-  chatTemplate: string | null;
-  transformersInfo: { auto_model?: string; processor?: string } | null;
-  sha: string | null;
-  usedStorage: number | null;
-  libraryName: string | null;
-  config: { architectures?: string; model_type?: string; tokenizer_config?: any } | null;
-  cardData: any;
-  tags: string[] | null;
-  safetensors: { parameters?: Record<string, number>; total?: number } | null;
-  siblings: { count: number; files: string[] } | null;
-  downloads: number | null;
-  likes: number | null;
-  trendingScore: number | null;
-  gated: any;
-  disabled: boolean | null;
-  lastModified: string | null;
-  createdAt: string | null;
-}
+import {
+  getHfCache,
+  prefetchHfDetails,
+  subscribeHfCache,
+  type HfModelDetails,
+} from "./ficha-tecnica/hf-cache";
 
 interface FichaTecnicaModalProps {
   model: AIModel | null;
@@ -88,38 +67,48 @@ interface FichaTecnicaModalProps {
 }
 
 export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
-  const [details, setDetails] = useState<HfModelDetails | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [showChatTemplate, setShowChatTemplate] = useState(false);
-  const [fetchKey, setFetchKey] = useState<string | null>(null);
-
   const hfModelId = model?.hfRepoId || (model?.slug ? resolveHfId(model) : null);
   const noHfId = !hfModelId;
 
-  if (hfModelId && fetchKey !== hfModelId) {
-    setFetchKey(hfModelId);
-  }
+  const [details, setDetails] = useState<HfModelDetails | null>(() => {
+    const entry = hfModelId ? getHfCache(hfModelId) : undefined;
+    return entry?.status === "ready" ? entry.details : null;
+  });
+  const [error, setError] = useState<string | null>(() => {
+    const entry = hfModelId ? getHfCache(hfModelId) : undefined;
+    return entry?.status === "ready" ? entry.error : null;
+  });
+  const [showChatTemplate, setShowChatTemplate] = useState(false);
 
   useEffect(() => {
-    if (!fetchKey) return;
-    let cancelled = false;
-    fetch(`/api/hf-model?id=${encodeURIComponent(fetchKey)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: HfModelDetails) => {
-        if (cancelled) return;
-        setDetails(data);
+    if (!hfModelId) return;
+    const entry = getHfCache(hfModelId);
+    if (!entry) {
+      prefetchHfDetails(hfModelId);
+    } else if (entry.status === "ready") {
+      // Refresco en segundo plano (stale-while-revalidate); mientras tanto se
+      // muestran los datos cacheados.
+      setDetails(entry.details);
+      setError(null);
+      prefetchHfDetails(hfModelId, true);
+    } else if (entry.status === "error") {
+      setDetails(null);
+      setError(entry.error);
+    }
+    // "loading": no hacer nada, la suscripción actualizará al completar.
+
+    return subscribeHfCache(hfModelId, () => {
+      const current = getHfCache(hfModelId);
+      if (!current) return;
+      if (current.status === "ready") {
+        setDetails(current.details);
         setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err.message || "Error al cargar la ficha técnica");
+      } else if (current.status === "error") {
         setDetails(null);
-      });
-    return () => { cancelled = true; };
-  }, [fetchKey]);
+        setError(current.error);
+      }
+    });
+  }, [hfModelId]);
 
   const loading = !!hfModelId && !error && (!details || details.id !== hfModelId);
 

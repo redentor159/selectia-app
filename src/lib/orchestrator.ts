@@ -42,11 +42,16 @@
 // ================================================================
 
 import { unstable_cache } from "next/cache";
+import {
+  SUMMARY_MODEL_PICK_KEYS,
+  type AIModel,
+  type Capabilities,
+  type CurrencyRate,
+  type DashboardData,
+  type DashboardSummary,
+  type SummaryAIModel,
+} from "./types";
 import type {
-  AIModel,
-  Capabilities,
-  CurrencyRate,
-  DashboardData,
   FreeAccessType,
   LicenseType,
   ModelsDevProvider,
@@ -73,15 +78,15 @@ import { CURRENCIES, DASHBOARD_DATA } from "./data/models";
 
 // AA API key resolution priority (most secure → least):
 //   1. Per-call customKey (X-AA-Key header from Salud view user input)
-//   2. process.env.AA_API_KEY (Vercel/GitHub Actions env var — PRODUCTION)
-//   3. Hardcoded fallback (free tier, 100 req/day — for local dev & demo)
+//   2. process.env.AA_API_KEY (Vercel Environment Variable — PRODUCTION)
 //
-// In PRODUCTION on Vercel: set AA_API_KEY as a Project Environment Variable
-// (Settings → Environment Variables). The hardcoded fallback only applies
-// when no env var is set, so it's safe for public repos — the free-tier key
-// is rate-limited per IP and has no billing exposure.
-const AA_API_KEY_FALLBACK = "aa_FSNEylzoSXyQhtxgyrsXHaEntZMPboOT";
-const AA_API_KEY = process.env.AA_API_KEY || AA_API_KEY_FALLBACK;
+// En producción (Vercel): define AA_API_KEY en Settings → Environment
+// Variables. En desarrollo local: colócala en .env.local (que está en
+// .gitignore y NUNCA se commitea). No existe fallback hardcodeado: si la
+// variable no está, se intenta llamar a AA sin key; si AA la rechaza, la
+// fuente queda en estado red con alerta ntfy. Jamás debe figurar una key
+// en el código fuente del repositorio público.
+const AA_API_KEY = process.env.AA_API_KEY ?? "";
 
 // Flag para habilitar el upsert de modelos OpenRouter que no existen en AA.
 // Solo activo cuando ENABLE_OR_UPSERT=true. Default: off (catálogo solo de AA).
@@ -95,7 +100,7 @@ const HF_TOKEN_FALLBACK = process.env.HF_TOKEN || "TU_TOKEN_REAL_AQUI";
 const HF_TOKEN = process.env.HF_TOKEN || HF_TOKEN_FALLBACK;
 
 // Resolve the effective AA key for a given call: explicit override wins,
-// otherwise fall back to the env var (or hardcoded fallback for dev).
+// otherwise fall back to the environment variable (sin fallback hardcodeado).
 function resolveAaKey(customKey?: string): string {
   if (customKey && customKey.trim().length > 0) return customKey.trim();
   return AA_API_KEY;
@@ -114,7 +119,7 @@ const RETRY_COUNT = 2;
 const RETRY_BACKOFF_MS = [500, 1000]; // exponential: 500, 1000
 
 const USER_AGENT =
-  "SelectIA/3.2 (+https://github.com/selectia)";
+  "SelectIA (+https://github.com/redentor159/selectia-app)";
 
 // ----------------------------------------------------------------
 // Provider metadata (15 providers per PRD v3.2)
@@ -367,6 +372,25 @@ export function inferLicense(
   if (/glm/i.test(n)) {
     return { license: "open-source-full", licenseName: "MIT" };
   }
+  // Kimi K2 family: Modified MIT License (open weights) — verified on
+  // huggingface.co/moonshotai and github.com/moonshotai/kimi-k2 (2026).
+  if (/kimi.*k2/i.test(n)) {
+    return { license: "open-source-full", licenseName: "Modified MIT License" };
+  }
+  // NVIDIA Nemotron: NVIDIA Open Model License — open weights, commercially
+  // usable, attribution required (not OSI-approved). Verified on nvidia.com.
+  if (/nemotron/i.test(n)) {
+    return { license: "conditional", licenseName: "NVIDIA Open Model License" };
+  }
+  // MiniMax M2/M2.5/M2.6/M2.7: MIT-based with attribution clause (open weights).
+  // MiniMax M3: MiniMax Community License — non-commercial by default.
+  // Verified on github.com/MiniMax-AI and huggingface MiniMaxAI.
+  if (/minimax.?m2/i.test(n)) {
+    return { license: "open-source-full", licenseName: "MiniMax M2 License (MIT-based)" };
+  }
+  if (/minimax.?m3/i.test(n)) {
+    return { license: "conditional", licenseName: "MiniMax Community License" };
+  }
   // Default for closed providers
   if (["OpenAI", "Anthropic", "Google", "xAI", "MiniMax", "Perplexity"].includes(provider)) {
     return { license: "api-paid", licenseName: `${provider} Proprietary` };
@@ -537,6 +561,8 @@ async function fetchArtificialAnalysis(
     reset: string;
     tier: string;
     retryAfter: number | null;
+    // B3 — true si los headers x-ratelimit-* provienen de la respuesta real de AA.
+    quotaFromHeaders: boolean;
   };
 }> {
   const url = "https://artificialanalysis.ai/api/v2/language/models/free";
@@ -640,7 +666,7 @@ async function fetchArtificialAnalysis(
         tier,
         note: `${models.length} modelos con Intelligence Index`,
       },
-      quota: { limit, remaining, reset, tier, retryAfter: retryAfterHeader },
+      quota: { limit, remaining, reset, tier, retryAfter: retryAfterHeader, quotaFromHeaders: true },
     };
   } catch (err) {
     await sendNtfyAlert(
@@ -657,7 +683,7 @@ async function fetchArtificialAnalysis(
         lastSync: new Date().toISOString(),
         note: `Error: ${(err as Error).message}`,
       },
-      quota: { limit: 100, remaining: 0, reset: "", tier: "free", retryAfter: null },
+      quota: { limit: 100, remaining: 0, reset: "", tier: "free", retryAfter: null, quotaFromHeaders: false },
     };
   }
 }
@@ -2765,11 +2791,12 @@ async function runAllFetchers(customKey?: string): Promise<DashboardData> {
     zeroeval.health,
   ];
 
-  // If AA quota is empty/zero and we fell back, restore default quota
+  // Si la cuota de AA quedó vacía/zero (usamos fallback) restauramos la cuota
+  // del seed, marcando explícitamente que NO proviene de headers reales.
   const aaQuota =
     aa.quota.remaining > 0 || aa.quota.limit > 0
       ? aa.quota
-      : { ...DASHBOARD_DATA.aaQuota, retryAfter: null };
+      : { ...DASHBOARD_DATA.aaQuota, retryAfter: null, quotaFromHeaders: false };
 
   return {
     models,
@@ -2806,6 +2833,7 @@ export async function getHealthStatus(): Promise<{
     reset: string;
     tier: string;
     retryAfter?: number | null;
+    quotaFromHeaders?: boolean;
   };
 }> {
   const data = await fetchDashboardData().catch(() => DASHBOARD_DATA);
@@ -2846,4 +2874,36 @@ export async function fetchSingleModelById(
   const { res } = await fetchAAEndpoint(url, apiKey);
   const json: AAResponse = await res.json();
   return json.data?.find((m) => m.id === modelId) ?? null;
+}
+
+// ----------------------------------------------------------------
+// projectSummary — proyección del payload completo al modo ligero
+// ----------------------------------------------------------------
+// Usado por GET /api/dashboard?fields=summary. Conserva por modelo solo
+// las claves de SUMMARY_MODEL_PICK_KEYS (copia plana, sin referencias al
+// objeto original) y los campos estructurales que consumen las vistas
+// Resumen y Analytics — incluidos priceIndex y benchlmStats, que alimentan
+// el chart "Evolución de Precios" y el panel "Titulares del Mercado".
+// La proyección client-side del force-refresh (vista Salud) replica
+// exactamente esta misma estructura.
+export function projectSummary(data: DashboardData): DashboardSummary {
+  return {
+    models: data.models.map((m) => {
+      const s = {} as SummaryAIModel;
+      for (const k of SUMMARY_MODEL_PICK_KEYS) {
+        (s as Record<string, unknown>)[k] = (m as unknown as Record<string, unknown>)[k];
+      }
+      return s;
+    }),
+    currencies: data.currencies,
+    exchangeRateProvider: data.exchangeRateProvider,
+    exchangeRateUpdated: data.exchangeRateUpdated,
+    exchangeRateNextUpdate: data.exchangeRateNextUpdate,
+    sources: data.sources,
+    aaQuota: data.aaQuota,
+    generatedAt: data.generatedAt,
+    arenaFetchedAt: data.arenaFetchedAt,
+    priceIndex: data.priceIndex,
+    benchlmStats: data.benchlmStats,
+  };
 }

@@ -387,26 +387,26 @@ export function TablaView() {
           <table className={cn("w-full table-dense", Object.entries(visibleCols).filter(([_, v]) => !v).map(([k]) => `hide-col-${k}`).join(" "))}>
             <thead className="bg-[var(--bg-elevated)] sticky top-0 z-40">
               <tr>
-                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky />
-                <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" />
-                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-contextWindow" />
-                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-intelligenceIndex" />
-                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-codingIndex" />
-                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-agenticIndex" />
-                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-speedTps" />
-                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-ttftMs" />
-                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-elo" />
-                <Th label="Confianza" className="col-eloCi" />
-                <Th label="Cutoff" className="col-knowledgeCutoff" />
-                <Th label="Params" className="col-hfParameters" />
-                <Th label="Capacidades" className="col-capabilities" />
+                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky tooltip="Nombre del modelo y su proveedor. Click en el nombre para copiarlo · doble click en la fila para ver la ficha técnica." />
+                <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Precio combinado de entrada/salida (70/30) en USD por millón de tokens. 0 = Gratis. Con cache se muestra el ahorro de cache hit." />
+                <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Costo por punto de Intelligence Index (precio blended ÷ inteligencia): qué tan rentable es el modelo por su capacidad." />
+                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-contextWindow" tooltip="Ventana de contexto en tokens (usa el valor de OpenRouter cuando existe)." />
+                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-intelligenceIndex" tooltip="Intelligence Index: puntaje compuesto de capacidad del modelo. El color indica el nivel." />
+                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-codingIndex" tooltip="Índice de habilidad de programación (BenchLM)." />
+                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-agenticIndex" tooltip="Índice de capacidad agéntica: uso de herramientas y tareas multi-paso (BenchLM)." />
+                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-speedTps" tooltip="Velocidad de generación en tokens por segundo." />
+                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-ttftMs" tooltip="Time To First Token: latencia hasta el primer token (ms). Distingue la parte de razonamiento de la respuesta." />
+                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-elo" tooltip="Puntuación Elo de calidad (BenchLM). Pasa el cursor sobre el valor de la celda para ver intervalo de confianza y votos." />
+                <Th label="Confianza" className="col-eloCi" tooltip="Intervalo de confianza (±) del Elo y votos que lo respaldan: menor CI y más votos = ranking más fiable." />
+                <Th label="Cutoff" className="col-knowledgeCutoff" tooltip="Fecha de corte de conocimiento del modelo (usa OpenRouter cuando existe)." />
+                <Th label="Params" className="col-hfParameters" tooltip="Parámetros del modelo en miles de millones (B). MoE = arquitectura Mixture of Experts." />
+                <Th label="Capacidades" className="col-capabilities" tooltip="Capacidades del modelo: razonamiento, visión, audio, tool use, etc." />
                 <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" className="col-reliability" onClickGlossary={() => openGlossary("Confiabilidad ZeroEval")} />
                 <Th className="col-hfHealth" label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
                 <Th className="col-hfDownloads" label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
                 <Th className="col-hfLikes" label={<span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> LK</span>} sortKey="hfLikes" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Likes en HuggingFace Hub (señal de calidad)" onClickGlossary={() => openGlossary("Likes HF")} />
                 <Th label={<span className="flex items-center gap-1"><FileText className="h-3 w-3" /> Ficha</span>} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" />
-                <Th label="Comp." />
+                <Th label="Comp." tooltip="Agregar o quitar el modelo de la comparación." />
               </tr>
             </thead>
             <tbody>
