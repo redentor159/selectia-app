@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 import {
   timeAgo,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Send,
   ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,12 +38,33 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import type { SourceHealth } from "@/lib/types";
+import {
+  SUMMARY_MODEL_PICK_KEYS,
+  type DashboardData,
+  type DashboardSummary,
+  type SourceHealth,
+  type SummaryAIModel,
+} from "@/lib/types";
 
 const STATUS_META = {
   green: { icon: CheckCircle2, label: "Operativo", color: "var(--color-success)", bg: "var(--color-success-bg)", border: "var(--color-success-border)" },
   yellow: { icon: AlertCircle, label: "Degradado", color: "var(--color-warning)", bg: "var(--color-warning-bg)", border: "var(--color-warning-border)" },
   red: { icon: XCircle, label: "Caído", color: "var(--color-error)", bg: "var(--color-error-bg)", border: "var(--color-error-border)" },
+};
+
+// URLs públicas de cada fuente integrada en el orquestador. Las claves deben
+// coincidir EXACTAMENTE con los `health.id` que devuelven los fetchers de
+// src/lib/orchestrator.ts (verificado: 9 fuentes).
+const SOURCE_URLS: Record<string, string> = {
+  "artificial-analysis": "https://artificialanalysis.ai",
+  "litellm": "https://github.com/BerriAI/litellm",
+  "arena-ai": "https://lmarena.ai",
+  "exchange-rate": "https://open.er-api.com",
+  "huggingface-hub": "https://huggingface.co",
+  "openrouter": "https://openrouter.ai",
+  "models-dev": "https://models.dev",
+  "benchlm": "https://benchlm.ai",
+  "zeroeval": "https://www.zeroeval.com",
 };
 
 // localStorage key for the user-supplied AA API key override.
@@ -51,7 +74,19 @@ const HF_KEY_STORAGE = "hf-api-key";
 
 export function SaludView() {
   const { data, isLoading, refetch } = useDashboardData();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Health check real contra GET /api/health (estado del orquestador).
+  const healthCheck = useQuery({
+    queryKey: ["health-check"],
+    queryFn: async () => {
+      const res = await fetch("/api/health");
+      const body = await res.json();
+      return { status: res.status, ok: res.ok, body };
+    },
+    refetchOnWindowFocus: false,
+  });
 
   // Offline detection (gap #5 — Modo Taller offline indicator)
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -103,10 +138,13 @@ export function SaludView() {
   const [isSendingNtfy, setIsSendingNtfy] = useState(false);
   const sourcesCount = data?.sources.length ?? 0;
 
-  // gap #10 — force refresh must hit the server-side ?force=1 route, NOT just
-  // react-query's refetch() (which would hit /api/dashboard without force).
-  // We POST/GET directly, then invalidate the react-query cache so the UI
-  // refreshes with the freshly-fetched data.
+  // gap #10 — force refresh debe golpear la ruta ?force=1 del servidor, NO el
+  // refetch() de react-query (que pegaría a /api/dashboard sin force y
+  // devolvería la copia cacheada del CDN, s-maxage=300 / unstable_cache 7 días).
+  // El payload fresco se inyecta directo en la query cache. Como Resumen y
+  // Analytics consumen el payload ligero (?fields=summary), la proyección
+  // summary se replica aquí en client-side con las mismas claves del endpoint,
+  // para que las vistas ya montadas vean los datos frescos sin un segundo fetch.
   const handleForceRefresh = useCallback(async () => {
     setIsForceRefreshing(true);
     try {
@@ -119,8 +157,33 @@ export function SaludView() {
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
-      // Invalidate the react-query cache so the UI picks up the new payload.
-      await refetch();
+      const fresh = (await res.json()) as DashboardData;
+      queryClient.setQueryData(["dashboard-data"], fresh);
+      // Proyección client-side del summary (misma estructura que projectSummary
+      // en el servidor) para que Resumen/Analytics refresquen al instante.
+      const summaryData: DashboardSummary = {
+        models: fresh.models.map((m) => {
+          const s = {} as SummaryAIModel;
+          for (const k of SUMMARY_MODEL_PICK_KEYS) {
+            (s as Record<string, unknown>)[k] = (m as unknown as Record<string, unknown>)[k];
+          }
+          return s;
+        }),
+        currencies: fresh.currencies,
+        exchangeRateProvider: fresh.exchangeRateProvider,
+        exchangeRateUpdated: fresh.exchangeRateUpdated,
+        exchangeRateNextUpdate: fresh.exchangeRateNextUpdate,
+        sources: fresh.sources,
+        aaQuota: fresh.aaQuota,
+        generatedAt: fresh.generatedAt,
+        arenaFetchedAt: fresh.arenaFetchedAt,
+        // Campos opcionales del summary: se conservan si el payload los trae
+        // (chart "Evolución de Precios" de Analytics y panel "Titulares del
+        // Mercado" de Resumen).
+        priceIndex: fresh.priceIndex ?? undefined,
+        benchlmStats: fresh.benchlmStats ?? undefined,
+      };
+      queryClient.setQueryData(["dashboard-summary"], summaryData);
       toast({
         title: "Datos actualizados",
         description: `Sincronización forzada completada — datos frescos desde las ${sourcesCount} fuentes en vivo.`,
@@ -134,7 +197,7 @@ export function SaludView() {
     } finally {
       setIsForceRefreshing(false);
     }
-  }, [refetch, toast, sourcesCount]);
+  }, [queryClient, toast, sourcesCount]);
 
   // gap #11 — ntfy test button must actually POST to /api/ntfy-test
   const handleTestNotification = useCallback(async () => {
@@ -196,6 +259,10 @@ export function SaludView() {
   const aaPercent = (aaRemaining / aaLimit) * 100;
   // gap #3 — Retry-After header (P1A-DATA field `retryAfter`)
   const aaRetryAfter = data.aaQuota.retryAfter ?? null;
+  // B3 — true si el orquestador capturó los headers x-ratelimit-* de la
+  // respuesta real de AA; false si vino de un fallback/error. Con false,
+  // la UI NO muestra los números como reales.
+  const quotaFromHeaders = data.aaQuota.quotaFromHeaders ?? false;
 
   const handleSaveAaKey = () => {
     const trimmed = aaKeyInput.trim();
@@ -222,7 +289,7 @@ export function SaludView() {
     setAaKeyInput("");
     toast({
       title: "Key AA removida",
-      description: "Se volverá a usar la key predeterminada (hardcodeada).",
+      description: "Se volverá a usar la key configurada en la variable de entorno AA_API_KEY.",
     });
   };
 
@@ -242,7 +309,7 @@ export function SaludView() {
     window.localStorage.removeItem(HF_KEY_STORAGE);
     setHfKeyStored(null);
     setHfKeyInput("");
-    toast({ title: "Token HF removido", description: "Se volverá a usar el token predeterminado (hardcodeado)." });
+    toast({ title: "Token HF removido", description: "Se volverá a usar el token configurado en la variable de entorno HF_TOKEN." });
   };
 
   return (
@@ -337,28 +404,37 @@ export function SaludView() {
               Cuota Artificial Analysis
             </CardTitle>
             <CardDescription className="text-xs">
-              Headers HTTP capturados: X-RateLimit-Limit / Remaining / Reset / Retry-After
+              Headers HTTP de AA: X-RateLimit-Limit / Remaining / Reset / Retry-After (cuando la API los devuelve)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Requests restantes hoy</span>
-              <span className="num text-2xl font-semibold" style={{ color: aaPercent > 30 ? "var(--color-success)" : aaPercent > 10 ? "var(--color-warning)" : "var(--color-error)" }}>
-                {aaRemaining}<span className="text-sm text-[var(--text-secondary)]">/{aaLimit}</span>
-              </span>
-            </div>
-            <Progress
-              value={aaPercent}
-              className="h-2"
-              style={{
-                background: "var(--bg-overlay)",
-              }}
-            />
+            {quotaFromHeaders ? (
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Requests restantes hoy</span>
+                <span className="num text-2xl font-semibold" style={{ color: aaPercent > 30 ? "var(--color-success)" : aaPercent > 10 ? "var(--color-warning)" : "var(--color-error)" }}>
+                  {aaRemaining}<span className="text-sm text-[var(--text-secondary)]">/{aaLimit}</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] uppercase tracking-wider text-[var(--text-secondary)]">Requests restantes hoy</span>
+                <span className="text-2xl font-semibold text-[var(--text-disabled)]">—</span>
+              </div>
+            )}
+            {quotaFromHeaders && (
+              <Progress
+                value={aaPercent}
+                className="h-2"
+                style={{
+                  background: "var(--bg-overlay)",
+                }}
+              />
+            )}
             <div className="flex justify-between text-xs text-[var(--text-secondary)]">
               <span>Tier: <Badge variant="outline" className="text-[10px] capitalize ml-1">{data.aaQuota.tier}</Badge></span>
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                Resetea {timeUntil(data.aaQuota.reset)}
+                Resetea {data.aaQuota.reset ? timeUntil(data.aaQuota.reset) : "—"}
               </span>
             </div>
             {/* gap #3 — Retry-After visible when AA returned 429 */}
@@ -368,7 +444,12 @@ export function SaludView() {
                 Rate-limited — reintentar en {aaRetryAfter}s
               </div>
             )}
-            {aaPercent < 30 && aaRetryAfter === null && (
+            {!quotaFromHeaders && (
+              <div className="rounded-md bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] px-2.5 py-1.5 text-[11px] text-[var(--color-warning)]">
+                Cuota estimada: la API no devolvió headers de rate limit. Los números no son datos reales.
+              </div>
+            )}
+            {quotaFromHeaders && aaPercent < 30 && aaRetryAfter === null && (
               <div className="rounded-md bg-[var(--color-warning-bg)] border border-[var(--color-warning-border)] px-2.5 py-1.5 text-[11px] text-[var(--color-warning)]">
                 Cuota baja — el cron de las 2 AM usará el último JSON válido si se agota.
               </div>
@@ -442,7 +523,7 @@ export function SaludView() {
                   : { color: "var(--color-blue, var(--brand-primary))", borderColor: "var(--brand-primary)", backgroundColor: "var(--brand-primary-subtle)" }
               }
             >
-              {aaKeyStored ? "Usando key personalizada" : "Usando key predeterminada (hardcodeada)"}
+              {aaKeyStored ? "Usando key personalizada" : "Usando key de variable de entorno"}
             </Badge>
           </div>
           <div className="flex gap-2">
@@ -622,7 +703,7 @@ export function SaludView() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-1.5">
                 <Bell className="h-4 w-4 text-[var(--color-warning)]" />
-                Notificaciones push
+                Alertas ntfy (servidor)
               </CardTitle>
               <Button
                 variant="ghost"
@@ -683,17 +764,44 @@ export function SaludView() {
             Health check
           </CardTitle>
           <CardDescription className="text-xs">
-            <code className="text-[var(--brand-primary)]">GET /api/dashboard</code> — endpoint del orquestador
+            <code className="text-[var(--brand-primary)]">GET /api/health</code> — estado en vivo del orquestador
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3 rounded-lg bg-[var(--bg-elevated)] px-4 py-3 font-mono text-xs">
-            <span className="flex h-2 w-2 rounded-full bg-[var(--color-success)] animate-pulse-soft" />
-            <span className="text-[var(--color-success)] font-semibold">200 OK</span>
-            <span className="text-[var(--text-secondary)]">·</span>
-            <span className="text-[var(--text-secondary)]">{formatNumber(JSON.stringify(data).length)} bytes</span>
-            <span className="text-[var(--text-secondary)]">·</span>
-            <span className="text-[var(--text-secondary)]">Cache: s-maxage=3600, stale-while-revalidate=86400</span>
+            {healthCheck.isLoading ? (
+              <>
+                <RefreshCw className="h-3 w-3 animate-spin text-[var(--text-secondary)]" />
+                <span className="text-[var(--text-secondary)]">Consultando…</span>
+              </>
+            ) : healthCheck.isError ? (
+              <>
+                <span className="flex h-2 w-2 rounded-full bg-[var(--color-error)]" />
+                <span className="text-[var(--color-error)] font-semibold">Error de red</span>
+                <span className="text-[var(--text-secondary)]">— no se pudo alcanzar /api/health</span>
+              </>
+            ) : (
+              <>
+                <span
+                  className={`flex h-2 w-2 rounded-full ${healthCheck.data?.ok ? "bg-[var(--color-success)] animate-pulse-soft" : "bg-[var(--color-error)]"}`}
+                />
+                <span className={`font-semibold ${healthCheck.data?.ok ? "text-[var(--color-success)]" : "text-[var(--color-error)]"}`}>
+                  {healthCheck.data?.status} {healthCheck.data?.ok ? "OK" : "Degradado"}
+                </span>
+                {healthCheck.data?.body?.models !== undefined && (
+                  <>
+                    <span className="text-[var(--text-secondary)]">·</span>
+                    <span className="text-[var(--text-secondary)]">{healthCheck.data.body.models} modelos</span>
+                  </>
+                )}
+                <span className="text-[var(--text-secondary)]">·</span>
+                <span className="text-[var(--text-secondary)]">
+                  {formatNumber(JSON.stringify(healthCheck.data?.body ?? {}).length)} bytes
+                </span>
+                <span className="text-[var(--text-secondary)]">·</span>
+                <span className="text-[var(--text-secondary)]">Cache: s-maxage=300, stale-while-revalidate=600</span>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -714,7 +822,20 @@ function SourceRow({
       <div className="flex items-center gap-3">
         <meta.icon className="h-4 w-4 shrink-0" style={{ color: meta.color }} />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{source.name}</div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium truncate">{source.name}</span>
+            {SOURCE_URLS[source.id] && (
+              <a
+                href={SOURCE_URLS[source.id]}
+                target="_blank"
+                rel="noreferrer"
+                title={`Abrir fuente: ${SOURCE_URLS[source.id]}`}
+                className="inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+              >
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            )}
+          </div>
           <div className="text-[11px] text-[var(--text-secondary)] truncate">{source.note}</div>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-[var(--text-secondary)] shrink-0">
@@ -810,7 +931,7 @@ function AlertRow({
   color: string;
   title: string;
   desc: string;
-  time: string;
+  time?: string;
 }) {
   return (
     <div className="flex items-start gap-2.5 rounded-lg px-3 py-2 hover:bg-[var(--bg-overlay)] transition-colors">
@@ -819,7 +940,11 @@ function AlertRow({
         <div className="text-xs font-medium">{title}</div>
         <div className="text-[11px] text-[var(--text-secondary)]">{desc}</div>
       </div>
-      {time !== "—" && <span className="text-[10px] text-[var(--text-disabled)] num shrink-0">{time}</span>}
+      {time && time !== "—" ? (
+        <span className="text-[10px] text-[var(--text-disabled)] num shrink-0">{time}</span>
+      ) : (
+        <span className="text-[10px] text-[var(--text-disabled)] italic shrink-0">Regla configurada</span>
+      )}
     </div>
   );
 }

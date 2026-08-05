@@ -54,8 +54,8 @@ flowchart TB
         EN[Engine HRE-TOPSIS<br/>2,039 líneas]
     end
 
-    subgraph "Static JSON"
-        JSON[master_dashboard_data.json<br/>376 KB · 206 modelos]
+    subgraph "API cacheada"
+        JSON[/api/dashboard<br/>orquestador server-side + caché]
     end
 
     subgraph "Client — Browser"
@@ -203,12 +203,10 @@ selectia/
 │       ├── use-dashboard-data.ts            # TanStack Query
 │       └── use-effective-dashboard-data.ts  # Custom TC override
 ├── public/
-│   ├── data/
-│   │   └── master_dashboard_data.json  # 376 KB — JSON estático
 │   ├── favicon-scale.svg
 │   └── robots.txt
 ├── scripts/
-│   └── generate-static-json.ts   # Cron job diario
+│   └── generate-static-json.ts   # DEV-ONLY — inspección local (no se sirve)
 ├── prisma/
 │   └── schema.prisma             # SQLite (no usado en runtime)
 ├── LICENSE                       # MIT

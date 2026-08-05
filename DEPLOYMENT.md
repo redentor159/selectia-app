@@ -103,44 +103,39 @@ Click "Deploy". Vercel hace todo automáticamente:
 
 ---
 
-## Cron Job (Opcional — datos frescos diarios)
+## Cron Job (datos frescos diarios)
 
-### GitHub Actions
+### Vercel Cron
 
-Crear archivo `.github/workflows/refresh-data.yml`:
+El cron está definido en `vercel.json` (no en GitHub Actions) y llama al
+orquestador server-side para forzar el refresco de las fuentes en vivo:
 
-```yaml
-name: Refresh Data
-on:
-  schedule:
-    - cron: '0 7 * * *'  # 7 AM UTC = 2 AM Lima
-  workflow_dispatch:
-
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v1
-      - run: bun install
-      - run: bun run scripts/generate-static-json.ts
-        env:
-          AA_API_KEY: ${{ secrets.AA_API_KEY }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      - name: Commit updated JSON
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add public/data/master_dashboard_data.json
-          git commit -m "chore: refresh data [skip ci]" || echo "No changes"
-          git push
+```json
+{
+  "crons": [
+    {
+      "path": "/api/dashboard?force=1",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}
 ```
 
-### Secrets de GitHub
+- Horario: `0 7 * * *` = 07:00 UTC diarias (02:00 Lima).
+- Acción: `GET /api/dashboard?force=1` → `revalidateTag("dashboard-data")` + los 9 fetchers en vivo (con fallbacks a seeds estáticos si una fuente falla).
+- No se commitea ningún JSON al repo: el resultado queda cacheado por Next.js (`unstable_cache`, revalidate 7 días) y por el edge (s-maxage=300, SWR=600).
 
-Settings → Secrets and variables → Actions:
-- `AA_API_KEY` = tu key
-- `HF_TOKEN` = tu token
+### Variables de entorno
+
+Vercel → Settings → Environment Variables (NO en el código):
+
+- `AA_API_KEY` = tu key de Artificial Analysis (free tier, 100 req/día).
+- `HF_TOKEN` = tu token de Hugging Face (rate limit por IP).
+- `NTFY_TOPIC` = topic de ntfy.sh para alertas (opcional, default `selectia-alerts`).
+
+### Refresco manual
+
+Desde la vista Salud, el botón "Forzar actualización" hace `fetch("/api/dashboard?force=1")` (rate limit 5/min). La ventana también refetch al recuperar conexión.
 
 ---
 

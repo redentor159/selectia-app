@@ -40,7 +40,7 @@ flowchart TB
     end
 
     subgraph "CDN"
-        CDN["Vercel Edge<br/>master_dashboard_data.json"]
+        CDN["Vercel Edge<br/>/api/dashboard (cacheado)"]
     end
 
     S1 --> S2 --> S3 --> S4 --> CDN
@@ -52,14 +52,15 @@ flowchart TB
 
 ### Patrón arquitectónico
 
-**Static-first + Serverless Proxy híbrido:**
+**API route cacheada + Serverless Proxy:**
 
 | Capa | Dónde | Cuándo |
 |---|---|---|
-| JSON estático | Vercel CDN | 99% de visitas (carga instantánea) |
-| API route `/api/dashboard` | Vercel Function | Force-refresh (Perfil D) |
+| API route `/api/dashboard` (orquestador) | Vercel Function | Todas las visitas (con caché edge) |
+| Caché Next.js `unstable_cache` (7 días) | Vercel Function | Entre refrescos del orquestador |
+| Caché edge (CDN) s-maxage=300, SWR=600 | Vercel Edge | Frente al usuario |
 | API route `/api/hf-model` | Vercel Function | Lazy-load Ficha Técnica |
-| Cron job | GitHub Actions | Diario 2 AM Lima (7 AM UTC) |
+| Cron job | Vercel Cron (vercel.json) | Diario 7 AM UTC → `/api/dashboard?force=1` |
 
 ---
 
@@ -91,7 +92,7 @@ flowchart LR
     end
 
     subgraph "FASE 4 — Output"
-        O1["master_dashboard_data.json<br/>376 KB"]
+        O1["GET /api/dashboard<br/>payload live o cacheado"]
     end
 
     F1 & F2 & F3 & F4 & F5 & F6 & F7 & F8 --> M1

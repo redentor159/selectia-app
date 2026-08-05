@@ -2,22 +2,24 @@
 /**
  * generate-static-json.ts
  *
- * Script para el cron diario de las 2 AM Lima (7 AM UTC) que genera el
- * archivo `master_dashboard_data.json` estático que se sirve a los usuarios.
+ * DEV-ONLY — ya no se sirve en runtime.
  *
- * PRD Parte 8 (linea 1529-1571): el cron diario recolecta 19 fuentes en
- * paralelo, procesa, y publica un único JSON <500KB que el navegador descarga
- * y renderiza client-side. Esto cubre el 99% de visitas SIN ninguna llamada
- * API en vivo (solo el force-refresh del Perfil D usa el serverless proxy).
+ * El dashboard consume `GET /api/dashboard` (orquestador server-side en
+ * `src/lib/orchestrator.ts`) cacheado con Next.js `unstable_cache` (revalidate
+ * 7 días) + CDN (s-maxage=300, stale-while-revalidate=600) y refresco por:
+ *   - cron diario de Vercel (vercel.json, 7 AM UTC, ?force=1)
+ *   - botón "Forzar actualización" en la vista Salud (?force=1, rate limit 5/min)
+ *   - reconexión de la ventana del navegador
  *
- * Uso:
+ * Este script se conserva SOLO para inspección local de datos: genera una
+ * copia del payload en `public/data/master_dashboard_data.json`. Ese archivo
+ * NO es leído por el runtime y NO debe servirse (fue retirado del repo).
+ *
+ * Uso (manual, local):
  *   bun run scripts/generate-static-json.ts
  *
- * Salida:
- *   public/data/master_dashboard_data.json  (siempre <500KB garantizado)
- *
- * GitHub Actions lo ejecuta a las 7 AM UTC diarias y commitea el resultado.
- * El commit dispara un redeploy automático en Vercel.
+ * Salida (solo para inspección, no se commitea):
+ *   public/data/master_dashboard_data.json  (siempre <500KB)
  */
 
 import { fetchDashboardData } from "../src/lib/orchestrator";

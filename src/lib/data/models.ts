@@ -1262,6 +1262,9 @@ export const DASHBOARD_DATA: DashboardData = {
     tier: "free",
     // Gap #3 — 5th AA HTTP header (null when no 429 has been observed)
     retryAfter: null,
+    // B3 — el seed NO proviene de headers reales (valores de demostración);
+    // la UI debe mostrarlo como estimado, no como medición en vivo.
+    quotaFromHeaders: false,
   },
   generatedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
   arenaFetchedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),

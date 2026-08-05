@@ -707,11 +707,11 @@ export const GLOSSARY: GlossaryTerm[] = [
   {
     term: "Cron",
     category: "Infraestructura",
-    aliases: ["GitHub Actions Cron"],
+    aliases: ["Cron de Vercel"],
     definition:
-      "Tarea programada que corre a las 02:00 UTC-5 diariamente. Orquesta las 13 fuentes, genera master_dashboard_data.json (<500KB) y hace commit al repo.",
-    example: "El cron descarga precios LiteLLM, II de AA, Elo de Arena, y los consolida.",
-    related: ["ntfy.sh", "Serverless Proxy", "JSON Estático"],
+      "Tarea programada que corre a las 07:00 UTC diariamente (configurada en vercel.json). Llama a GET /api/dashboard?force=1, que invoca al orquestador server-side para consultar en vivo las 9 fuentes integradas y actualizar la caché.",
+    example: "El cron fuerza el refresco de precios LiteLLM, el Intelligence Index de AA, el Elo de Arena y tipo de cambio; el resultado queda cacheado por Next.js.",
+    related: ["ntfy.sh", "Orquestador", "Caché"],
   },
   {
     term: "Serverless Proxy",
@@ -723,13 +723,13 @@ export const GLOSSARY: GlossaryTerm[] = [
     related: ["Cron", "JSON Estático", "Artificial Analysis"],
   },
   {
-    term: "JSON Estático",
+    term: "JSON dinámico",
     category: "Infraestructura",
-    aliases: ["Static JSON"],
+    aliases: ["Orquestador", "Live Data"],
     definition:
-      "Archivo master_dashboard_data.json servido vía Vercel CDN. Garantiza <100ms de carga y cero costo de cómputo. Se regenera cada 24h por el cron.",
-    example: "El JSON estático pesa 380KB y contiene 219 modelos + 21 monedas + 13 fuentes.",
-    related: ["Cron", "Serverless Proxy"],
+      "El dashboard no usa un JSON estático: consume GET /api/dashboard, que ejecuta el orquestador server-side (src/lib/orchestrator.ts) con caché Next.js unstable_cache (revalidate 7 días) y CDN s-maxage=300 / SWR=600, más refresco por cron diario y por el botón Forzar actualización.",
+    example: "El orquestador consulta 9 fuentes en vivo (Artificial Analysis, LiteLLM, Arena, HuggingFace, OpenRouter, Models.dev, BenchLM, ZeroEval, Open ER-API) con fallbacks y consolida el payload.",
+    related: ["Cron", "Serverless Proxy", "Caché"],
   },
   {
     term: "TTFT",
@@ -1522,9 +1522,9 @@ export const GLOSSARY: GlossaryTerm[] = [
     category: "Arquitectura",
     aliases: ["Content Delivery Network", "Red de Distribución de Contenido"],
     definition:
-      "Red de servidores distribuidos globalmente que sirve contenido estático (JSON, imágenes) cerca del usuario para baja latencia. SelectIA sirve master_dashboard_data.json via Vercel CDN → el JSON se sirve desde el edge más cercano al usuario (Lima, Buenos Aires, etc.) para carga <100ms.",
-    example: "Usuario en Lima pide el JSON → Vercel CDN lo sirve desde un servidor en São Paulo (50ms) en vez de desde US (200ms).",
-    related: ["JSON Estático", "Serverless Proxy", "Serverless"],
+      "Red de servidores distribuidos globalmente que sirve contenido cerca del usuario para baja latencia. SelectIA expone /api/dashboard con cabeceras Cache-Control (s-maxage=300, stale-while-revalidate=600), de modo que Vercel edge cachea la respuesta del orquestador cerca del usuario (Lima, São Paulo, etc.) y la refresca bajo demanda.",
+    example: "Usuario en Lima pide /api/dashboard → Vercel CDN entrega la respuesta cacheada desde un servidor cercano; cuando expira, el edge refresca contra el orquestador.",
+    related: ["JSON dinámico", "Serverless Proxy", "Serverless"],
   },
   {
     term: "Serverless",

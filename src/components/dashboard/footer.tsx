@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Database, RefreshCw, Github, ExternalLink } from "lucide-react";
 import { timeAgo, timeUntil } from "@/lib/format";
+import { useDashboardStore } from "@/store/dashboard-store";
 
 export function Footer() {
   const { data } = useQuery({
@@ -14,6 +16,14 @@ export function Footer() {
     },
     staleTime: 1000 * 60 * 30,
   });
+
+  // Re-render cada 60 s para que timeUntil recalcule el contador
+  // "TC se actualiza" en lugar de quedar congelado.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const generatedAt = data?.generatedAt;
   const nextUpdate = data?.exchangeRateNextUpdate;
@@ -44,7 +54,7 @@ export function Footer() {
         </div>
         <div className="flex items-center gap-3">
           <a
-            href="https://github.com"
+            href="https://github.com/redentor159/selectia-app"
             target="_blank"
             rel="noreferrer"
             className="flex items-center gap-1 hover:text-[var(--text-primary)] transition-colors"
@@ -52,16 +62,14 @@ export function Footer() {
             <Github className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Repo</span>
           </a>
-          <a
-            href="https://artificialanalysis.ai"
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
+            onClick={() => useDashboardStore.getState().setActiveView("salud")}
             className="flex items-center gap-1 hover:text-[var(--text-primary)] transition-colors"
           >
             <span className="hidden sm:inline">Fuentes verificadas</span>
             <ExternalLink className="h-3 w-3" />
-          </a>
-          <span className="text-[var(--text-disabled)]">v3.2 · Jun 2026</span>
+          </button>
         </div>
       </div>
     </footer>
