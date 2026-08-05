@@ -193,6 +193,23 @@ export function timeUntil(iso: string): string {
   return `en ${hours}h ${remMin}m`;
 }
 
+export function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  const meses = [
+    "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+    "jul.", "ago.", "sep.", "oct.", "nov.", "dic.",
+  ];
+  const dia = d.getDate();
+  const mes = meses[d.getMonth()];
+  const año = d.getFullYear();
+  let horas = d.getHours();
+  const minutos = d.getMinutes();
+  const ampm = horas >= 12 ? "p. m." : "a. m.";
+  horas = horas % 12 || 12;
+  const minStr = minutos < 10 ? `0${minutos}` : minutos;
+  return `${dia} ${mes} ${año}, ${horas}:${minStr} ${ampm}`;
+}
+
 // ---------- Number formatting ----------
 
 export function formatNumber(n: number): string {

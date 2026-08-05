@@ -6,6 +6,7 @@ import {
   timeAgo,
   timeUntil,
   formatNumber,
+  formatDateTime,
 } from "@/lib/format";
 import {
   HeartPulse,
@@ -288,6 +289,17 @@ export function SaludView() {
           </div>
         </div>
       )}
+
+      {/* Orquestador sync timestamp */}
+      <div className="px-1 text-xs text-[var(--text-secondary)] flex items-center gap-2">
+        <Clock className="h-3.5 w-3.5 text-[var(--brand-primary)]" />
+        <span>
+          Última sincronización del orquestador:{" "}
+          <span className="font-medium text-[var(--text-primary)]">
+            {data.generatedAt ? formatDateTime(data.generatedAt) : "—"}
+          </span>
+        </span>
+      </div>
 
       {/* Overall status banner */}
       <div
