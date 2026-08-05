@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { ReferenceArea, ResponsiveContainer } from "recharts";
+import { Brush, ReferenceArea, ResponsiveContainer } from "recharts";
 import { ChevronLeft, ChevronRight, RotateCcw, X } from "lucide-react";
 import {
   Dialog,
@@ -31,10 +31,15 @@ import type { AIModel } from "@/lib/types";
  * El eje Y nunca se toca: el zoom es exclusivo del eje X.
  */
 export interface ChartDialogContext {
-  /** Dominio actual del eje X (restablecido tras zoom, o default si no hay). */
+  /** Dominio actual del eje X (restablecido tras zoom; igual a default si no hay). */
   xDomain: [number | string | "auto", number | string | "auto"];
-  /** Área de drag visual durante la selección (null si no hay drag activo). */
+  /** Área de drag visual durante la selección (null si no hay drag activo).
+   *  En modo "brush" siempre es null (no se usa ReferenceArea). */
   refArea: ReactNode;
+  /** Elemento <Brush> para insertar como hijo del chart (solo modo "brush").
+   *  En modo "drag" es null. Recharts exige que <Brush> sea hijo directo del
+   *  chart, por eso viaja por contexto. */
+  brush: ReactNode | null;
   onMouseDown: (e: any) => void;
   onMouseMove: (e: any) => void;
   onMouseUp: () => void;
@@ -64,6 +69,13 @@ interface ChartExpandDialogProps {
   renderChart: (ctx: ChartDialogContext) => ReactNode;
   activeProviders: string[];
   onToggle: (p: string) => void;
+  /**
+   * Modo de interacción del zoom:
+   * - "drag" (default): ReferenceArea + arrastrar sobre el gráfico.
+   * - "brush": <Brush> nativo de Recharts como barra inferior del chart.
+   * Mutuamente excluyentes; controla qué estado y handlers se exponen.
+   */
+  interactionMode?: "brush" | "drag";
   timeRes?: TimeResolution;
   onTimeResChange?: (r: TimeResolution) => void;
   legendData?: { provider: string; color: string; z?: number | null }[];
@@ -121,6 +133,7 @@ export function ChartExpandDialog({
   renderChart,
   activeProviders,
   onToggle,
+  interactionMode = "drag",
   timeRes,
   onTimeResChange,
   legendData,
@@ -135,6 +148,18 @@ export function ChartExpandDialog({
   const [refAreaLeft, setRefAreaLeft] = useState<DomainValue | null>(null);
   const [refAreaRight, setRefAreaRight] = useState<DomainValue | null>(null);
   const [fichaModelId, setFichaModelId] = useState<string | null>(null);
+
+  /**
+   * Estado de zoom del Brush (modo "brush"). Indices [start, end] del array
+   * data. INDEPENDIENTE del estado de drag (zoomedDomain) — no se mezclan.
+   * - null = rango completo (sin zoom aplicado).
+   * - Se pasa al Brush via startIndex/endIndex (controlado).
+   * - Solo se usa cuando interactionMode === "brush"; en "drag" queda null.
+   */
+  const [zoom, setZoom] = useState<{ start: number; end: number } | null>(null);
+  /** Último índice válido del array data (para el Brush y para detectar
+   *  si el rango actual equivale al dominio completo). */
+  const lastIndex = Math.max(0, data.length - 1);
 
   // Reset de zoom al cambiar la resolución temporal: el espacio de datos
   // cambia (reagrupación en la vista), un dominio viejo no tiene sentido.
@@ -152,8 +177,14 @@ export function ChartExpandDialog({
   const currentDomain: Domain =
     zoomedDomain ?? (defaultXDomain as Domain);
 
-  /** true cuando hay un zoom aplicado ( guía botones de pan/reset). */
-  const isZoomed = zoomedDomain !== null;
+  /** true cuando hay un zoom aplicado ( guía botones de pan/reset).
+   *  - modo "drag": zoomedDomain !== null (igual que antes).
+   *  - modo "brush": zoom !== null y el rango no equivale al dominio
+   *    completo (start=0 && end=lastIndex significa "sin zoom"). */
+  const isZoomed =
+    interactionMode === "brush"
+      ? zoom !== null && !(zoom.start === 0 && zoom.end === lastIndex)
+      : zoomedDomain !== null;
 
   /** Extremos mín/máx del dominio base (para validación y paneo numérico). */
   const baseBounds = useMemo(() => {
@@ -284,6 +315,8 @@ export function ChartExpandDialog({
   };
 
   const handleMouseDown = (e: any) => {
+    // En modo "brush" no hacemos nada: el zoom vive en el Brush nativo.
+    if (interactionMode === "brush") return;
     if (!e) return;
     const x = extractX(e);
     if (x === null) return;
@@ -292,6 +325,8 @@ export function ChartExpandDialog({
   };
 
   const handleMouseMove = (e: any) => {
+    // En modo "brush" no hacemos nada.
+    if (interactionMode === "brush") return;
     if (refAreaLeft === null) return; // solo actualiza si está arrastrando
     const x = extractX(e);
     if (x === null) return;
@@ -299,18 +334,58 @@ export function ChartExpandDialog({
   };
 
   const handleMouseUp = () => {
+    // En modo "brush" no hacemos nada.
+    if (interactionMode === "brush") return;
     applyZoomFromDrag();
   };
 
-  // ReferenceArea para visualizar el arrastrar. x1 < x2 siempre (estético)
+  // ReferenceArea para visualizar el arrastrar. x1 < x2 siempre (estético).
+  // En modo "brush" siempre es null: no se usa ReferenceArea.
   const refArea: ReactNode =
-    refAreaLeft !== null && refAreaRight !== null && refAreaLeft !== refAreaRight ? (
-      <ReferenceArea
-        x1={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaLeft : refAreaRight}
-        x2={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaRight : refAreaLeft}
-        strokeOpacity={0.4}
-        fill="var(--brand-primary)"
-        fillOpacity={0.18}
+    interactionMode === "brush"
+      ? null
+      : refAreaLeft !== null && refAreaRight !== null && refAreaLeft !== refAreaRight ? (
+        <ReferenceArea
+          x1={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaLeft : refAreaRight}
+          x2={(refAreaLeft as any) <= (refAreaRight as any) ? refAreaRight : refAreaLeft}
+          strokeOpacity={0.4}
+          fill="var(--brand-primary)"
+          fillOpacity={0.18}
+        />
+      ) : null;
+
+  /**
+   * Brush nativo de Recharts (modo "brush"). Configuración recuperada del
+   * commit 1a3aa99, donde funcionaba perfecto para el LineChart de Evolución.
+   * Recharts EXIGE que <Brush> sea hijo directo del chart (no hermano del
+   * ResponsiveContainer), por eso viaja por contexto para que la vista lo
+   * inserte dentro de su <LineChart>.
+   * El Brush controla la escala del eje X vía startIndex/endIndex sobre el
+   * array data del chart; el dominio se recalcula solo. Estado controlado:
+   * - s=0 && e=lastIndex → setZoom(null) (rango completo = sin zoom)
+   * - otro rango → setZoom({start, end})
+   * En modo "drag" es null.
+   */
+  const brush: ReactNode | null =
+    interactionMode === "brush" ? (
+      <Brush
+        dataKey={xDataKey}
+        height={28}
+        travellerWidth={10}
+        stroke="var(--border-strong)"
+        fill="var(--bg-overlay)"
+        startIndex={zoom?.start ?? 0}
+        endIndex={zoom?.end ?? lastIndex}
+        onChange={(r) => {
+          if (!r) return;
+          const s = r.startIndex ?? 0;
+          const e = r.endIndex ?? lastIndex;
+          if (s === 0 && e === lastIndex) {
+            setZoom(null);
+          } else {
+            setZoom({ start: s, end: e });
+          }
+        }}
       />
     ) : null;
 
@@ -318,6 +393,7 @@ export function ChartExpandDialog({
     () => ({
       xDomain: currentDomain as [number | string | "auto", number | string | "auto"],
       refArea,
+      brush,
       onMouseDown: handleMouseDown,
       onMouseMove: handleMouseMove,
       onMouseUp: handleMouseUp,
@@ -327,7 +403,15 @@ export function ChartExpandDialog({
       isZoomed,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentDomain, refAreaLeft, refAreaRight, activeProviders, onToggle, isZoomed]
+    [
+      currentDomain,
+      refAreaLeft,
+      refAreaRight,
+      brush,
+      activeProviders,
+      onToggle,
+      isZoomed,
+    ]
   );
 
   // Leyenda: explícita si viene, sino derivada de data (par provider + color)
@@ -351,6 +435,18 @@ export function ChartExpandDialog({
     ? models.find((m) => m.id === fichaModelId) ?? null
     : null;
 
+  /** Reinicia el zoom según el modo activo.
+   *  - modo "drag": limpia zoomedDomain (dominio completo).
+   *  - modo "brush": limpia zoom → el Brush vuelve a [0, lastIndex] porque
+   *    startIndex/endIndex derivan de zoom ?? 0/lastIndex. */
+  const resetZoom = () => {
+    if (interactionMode === "brush") {
+      setZoom(null);
+    } else {
+      setZoomedDomain(null);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -363,34 +459,41 @@ export function ChartExpandDialog({
             <DialogTitle className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
               {title}
             </DialogTitle>
-            {/* Controles de zoom — visibles solo cuando hay zoom aplicado */}
+            {/* Controles de zoom — visibles solo cuando hay zoom aplicado.
+                En modo "brush" NO se muestran los botones de pan (el usuario
+                arrastra las manijas del Brush directamente); el botón Reiniciar
+                sí aparece en ambos modos. */}
             {isZoomed && (
               <div className="flex items-center gap-1 ml-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => pan(-1)}
-                  title="Desplazar a la izquierda"
-                  aria-label="Desplazar a la izquierda"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => pan(1)}
-                  title="Desplazar a la derecha"
-                  aria-label="Desplazar a la derecha"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+                {interactionMode !== "brush" && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => pan(-1)}
+                      title="Desplazar a la izquierda"
+                      aria-label="Desplazar a la izquierda"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => pan(1)}
+                      title="Desplazar a la derecha"
+                      aria-label="Desplazar a la derecha"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs gap-1 text-[var(--text-secondary)]"
-                  onClick={() => setZoomedDomain(null)}
+                  onClick={resetZoom}
                   title="Reiniciar zoom"
                   aria-label="Reiniciar zoom"
                 >
@@ -413,10 +516,12 @@ export function ChartExpandDialog({
               {subtitle}
             </DialogDescription>
           )}
-          {/* Hint de interacción cuando no hay zoom */}
+          {/* Hint de interacción cuando no hay zoom — distinto por modo */}
           {!isZoomed && (
             <div className="text-[10px] text-[var(--text-secondary)] opacity-70 mt-0.5">
-              Click y arrastrar sobre el gráfico para hacer zoom en el eje X
+              {interactionMode === "brush"
+                ? "Arrastrá las manijas de la barra inferior para hacer zoom en el eje X"
+                : "Click y arrastrar sobre el gráfico para hacer zoom en el eje X"}
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2 mt-1">

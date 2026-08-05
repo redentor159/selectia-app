@@ -1710,6 +1710,11 @@ export function AnalyticsView() {
           xDataKey="quarter"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          // Modo "brush": el LineChart de Evolución usa el <Brush> nativo de
+          // Recharts (barra inferior del chart) en lugar de ReferenceArea +
+          // drag. Funciona porque los <Line> no llevan data propia y Recharts
+          // cae en data.slice(start,end) sobre el array data del LineChart.
+          interactionMode="brush"
           timeRes={timeRes}
           onTimeResChange={setTimeRes}
           legendData={timelineLegendData}
@@ -1740,9 +1745,6 @@ export function AnalyticsView() {
               <LineChart
                 data={chartData}
                 margin={{ top: 10, right: 16, bottom: 8, left: 8 }}
-                onMouseDown={ctx.onMouseDown}
-                onMouseMove={ctx.onMouseMove}
-                onMouseUp={ctx.onMouseUp}
               >
                 <CartesianGrid
                   stroke="var(--border-default)"
@@ -1845,7 +1847,9 @@ export function AnalyticsView() {
                     />
                   );
                 })}
-                {ctx.refArea}
+                {/* Brush nativo en modo "brush": hijo directo del LineChart.
+                    Recharts lo exige así para que recorte data.slice(start,end). */}
+                {ctx.brush}
               </LineChart>
             );
           }}
