@@ -38,6 +38,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# respaldos de sesión con posibles secretos (nunca subir)
+/recuperacion_memoria/
+
 
 # typescript
 *.tsbuildinfo
