@@ -222,3 +222,82 @@ export function formatMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
+
+// ---------- Razones del recomendador (HRE-TOPSIS display consistente) ----------
+// Aditivo: los callers que no pasan `currency` siguen recibiendo el texto de hoy
+// (PEN con el fallback 3.714 del orquestador, sin sufijos).
+
+/**
+ * Moneda usada por las razones del motor. Proviene del store de moneda/tasas
+ * y usa el MISMO fallback que `orchestrator.ts` (`rates.PEN ?? 3.714`) cuando
+ * el servicio de tipo de cambio está caído (`isFallback === true`).
+ */
+export interface RecommendCurrency {
+  code: string;
+  symbol: string;
+  rateFromUsd: number; // multiplicar USD por esto para obtener la moneda objetivo
+  isFallback?: boolean;
+}
+
+/**
+ * Etiqueta de costo blended en la moneda del usuario:
+ * `S/. 8.52/M tokens blended`. Con `isFallback` añade el sufijo "(TC estimado)".
+ */
+export function costRateLabel(blendedUsd: number, cur: RecommendCurrency): string {
+  const converted = (blendedUsd * cur.rateFromUsd).toFixed(2);
+  const base = `${cur.symbol} ${converted}/M tokens blended`;
+  return cur.isFallback ? `${base} (TC estimado)` : base;
+}
+
+/**
+ * Eslogan de gratuidad honesto para el modo "solo-gratis".
+ * Solo se afirma "100% gratis" cuando el modelo es `free-100` y su precio
+ * real de entrada es 0; los demás tiers reciben un texto matizado o nada.
+ */
+export function sloganForFreeAccess(fa: FreeAccessType, verifiedFree: boolean): string | null {
+  if (fa === "free-100" && verifiedFree) {
+    return "Disponible 100% gratis — sin tarjeta de crédito requerida";
+  }
+  if (fa === "free-limited") return "Disponible gratis con límites (free tier)";
+  if (fa === "free-registration") return "Disponible gratis con registro";
+  return null; // paid-only o precio no verificado → sin etiqueta
+}
+
+/**
+ * Redondeo por mayor remanente: devuelve enteros que SIEMPRE suman 100
+ * (p. ej. [0.503, 0.497] → [50, 50]; [0.334, 0.333, 0.333] → [34, 33, 33]).
+ * Pesos vacíos o total 0 → [].
+ */
+export function normalizePercentages(weights: number[]): number[] {
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  if (total === 0) return [];
+  const raw = weights.map((w) => (w / total) * 100);
+  const floors = raw.map((r) => Math.floor(r));
+  let remaining = 100 - floors.reduce((sum, f) => sum + f, 0);
+  const order = raw
+    .map((r, i) => ({ i, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let k = 0; k < remaining; k++) {
+    floors[order[k % order.length].i] += 1;
+  }
+  return floors;
+}
+
+/**
+ * Texto del badge multi-intent: aclara que la categoría ganadora define el
+ * ranking (el multi-intent NO mezcla el ranking) y suma 100% exacto.
+ */
+export function buildMultiIntentText(
+  parts: { key: string; label: string; weight: number }[],
+  winnerLabel: string
+): string {
+  if (parts.length === 0) return "";
+  const pcts = normalizePercentages(parts.map((p) => p.weight));
+  const shown = parts.map((p, i) => `${p.label} ${pcts[i]}%`).join(" + ");
+  const realDiffPts = parts.length >= 2 ? Math.abs(parts[0].weight - parts[1].weight) * 100 : 100;
+  const apparentTie = parts.length >= 2 && pcts[0] === pcts[1] && realDiffPts < 0.5;
+  if (apparentTie) {
+    return `Multi-intento: [Empate ${pcts[0]}/${pcts[1]}] — la primera categoría detectada define el ranking`;
+  }
+  return `Multi-intento: [${shown}] — ${winnerLabel} define el ranking (categoría ganadora)`;
+}

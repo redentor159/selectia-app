@@ -9,9 +9,10 @@ import {
   formatVotes,
   TASK_CATEGORIES,
   CATEGORY_CANONICAL_QUERIES,
+  CATEGORY_LABELS,
   type TaskCategory,
 } from "@/lib/engine/hre-topsis";
-import { getCurrencyByCode, formatPrice, computeBlendedUsd, getIntelligenceColor } from "@/lib/format";
+import { getCurrencyByCode, formatPrice, computeBlendedUsd, getIntelligenceColor, buildMultiIntentText } from "@/lib/format";
 import { ProviderLogo } from "../provider-logo";
 import { LicenseBadge, FreeAccessBadge } from "../model-badges";
 import {
@@ -90,6 +91,9 @@ export function RecomendadorView() {
     compareIds,
     openGlossary,
   } = useDashboardStore();
+  // Moneda reactiva del store: las razones del motor derivan la tasa viva de
+  // aquí, así un cambio de moneda re-deriva el texto sin re-renders extra.
+  const currency = useDashboardStore((s) => s.currency);
   const { toast } = useToast();
 
   const [localQuery, setLocalQuery] = useState(recommendationQuery);
@@ -111,13 +115,24 @@ export function RecomendadorView() {
     // current query even if recommend() uses a different internal entry.
     // Also pass `hardwareVram` from Filtro 13 so the offline category hard
     // filter (Capa 2) can refine "exists in Ollama?" → "fits in MY GPU?".
+    // Display consistente: la moneda del store + tasa viva viajan en
+    // `options.currency` para que las razones usen la misma tasa que el UI.
     const store = useDashboardStore.getState();
+    const currencyMeta = getCurrencyByCode(data.currencies, store.currency);
+    const rateIsFallback =
+      data.sources?.some((s) => s.id === "exchange-rate" && s.status !== "green") ?? false;
     return recommend(submittedQuery, data.models, operationMode, undefined, {
       manualModeOverride: store.modeManuallySet,
       queryText: submittedQuery,
       hardwareVram: store.filters.hardwareFilterVram,
+      currency: {
+        code: currencyMeta.code,
+        symbol: currencyMeta.symbol,
+        rateFromUsd: currencyMeta.rateFromUsd,
+        isFallback: rateIsFallback,
+      },
     });
-  }, [data, submittedQuery, operationMode]);
+  }, [data, submittedQuery, operationMode, currency]);
 
   // Sync the active category chip with the engine's classified intent —
   // when the user types a query, highlight the chip matching the winner.
@@ -127,7 +142,7 @@ export function RecomendadorView() {
     }
   }, [result?.intent?.category]);
 
-  const currencyMeta = data ? getCurrencyByCode(data.currencies, useDashboardStore.getState().currency) : null;
+  const currencyMeta = data ? getCurrencyByCode(data.currencies, currency) : null;
 
   const handleSubmit = (q?: string) => {
     const final = q ?? localQuery;
@@ -305,7 +320,14 @@ export function RecomendadorView() {
         {result.multiIntent && (
           <Badge variant="outline" className="gap-1 text-[var(--color-warning)] border-[var(--color-warning-border)]">
             <Layers className="h-3 w-3" />
-            Multi-intent: {result.multiIntent.map((m) => `${m.category} ${(m.weight * 100).toFixed(0)}%`).join(" + ")}
+            {buildMultiIntentText(
+              result.multiIntent.map((m) => ({
+                key: m.category,
+                label: CATEGORY_LABELS[m.category],
+                weight: m.weight,
+              })),
+              result.intent?.label ?? result.categoryLabel
+            )}
           </Badge>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-1.5">

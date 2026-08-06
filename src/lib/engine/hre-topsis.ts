@@ -29,6 +29,9 @@ import type {
   ProfileId,
 } from "../types";
 import { calculateCR } from "./ahp-verification";
+// Display consistente: formateo de razones con moneda/tasa viva del store.
+// Solo se usa en generateReasons — el cálculo del ranking NO pasa por aquí.
+import { costRateLabel, sloganForFreeAccess, type RecommendCurrency } from "../format";
 
 // Re-export TaskCategory so consumers can import it from this module.
 export type { TaskCategory };
@@ -975,7 +978,8 @@ function generateReasons(
   metrics: ModelMetrics,
   category: TaskCategory,
   mode: OperationMode,
-  weights: WeightSet
+  weights: WeightSet,
+  currency?: RecommendCurrency
 ): string[] {
   const reasons: string[] = [];
   const wEntries = Object.entries(weights).sort((a, b) => b[1] - a[1]);
@@ -989,8 +993,15 @@ function generateReasons(
         if (blended === 0) {
           reasons.push(`Tier gratuito — costo cero, ideal para MYPE con presupuesto ajustado`);
         } else {
+          // Tasa viva del store (mismo fallback 3.714 del orquestador cuando no
+          // hay currency). El II citado es el que el ranking usó (metrics.*).
+          const cur = currency ?? { code: "PEN", symbol: "S/.", rateFromUsd: 3.714 };
+          const prefix =
+            metrics.hasImputedData && model.intelligenceIndex == null
+              ? "Eficiencia de costo (II estimado): "
+              : "Excelente eficiencia de costo: ";
           reasons.push(
-            `Excelente eficiencia de costo: S/. ${(blended * 3.714).toFixed(2)}/M tokens blended con Intelligence Index de ${model.intelligenceIndex}`
+            `${prefix}${costRateLabel(blended, cur)} con Intelligence Index de ${metrics.intelligenceIndex}`
           );
         }
         break;
@@ -999,6 +1010,10 @@ function generateReasons(
         if (model.elo) {
           reasons.push(
             `Alta preferencia humana: Elo ${model.elo} ±${model.eloCi} (${formatVotes(model.eloVotes)} votos en Arena AI)`
+          );
+        } else if (metrics.hasImputedData) {
+          reasons.push(
+            `Potencial de preferencia humana: Elo ${metrics.elo} (estimado — sin dato del modelo)`
           );
         }
         break;
@@ -1010,6 +1025,10 @@ function generateReasons(
         if (model.intelligenceIndex) {
           reasons.push(
             `Intelligence Index de ${model.intelligenceIndex} — sobresaliente en razonamiento y benchmarks académicos`
+          );
+        } else if (metrics.hasImputedData) {
+          reasons.push(
+            `Intelligence Index de ${metrics.intelligenceIndex} (estimado — sin dato del modelo)`
           );
         }
         // Razón complementaria: BenchLM category score (display, no afecta ranking)
@@ -1031,6 +1050,10 @@ function generateReasons(
           reasons.push(
             `Coding Index de ${model.codingIndex} — top en Terminal-Bench y SciCode`
           );
+        } else if (metrics.hasImputedData) {
+          reasons.push(
+            `Coding Index de ${metrics.codingIndex} (estimado — sin dato del modelo)`
+          );
         }
         break;
       case "agenticIndex":
@@ -1038,19 +1061,37 @@ function generateReasons(
           reasons.push(
             `Agentic Index de ${model.agenticIndex} — capability demostrada en tareas multi-paso autónomas`
           );
+        } else if (metrics.hasImputedData) {
+          reasons.push(
+            `Agentic Index de ${metrics.agenticIndex} (estimado — sin dato del modelo)`
+          );
         }
         break;
       case "speed":
-        if (model.speedTps) {
+        if (model.speedTps == null) {
+          reasons.push(
+            `Velocidad estimada: ${metrics.speed} tok/s (baseline del motor)`
+          );
+        } else if (model.speedTps > 500) {
+          reasons.push(
+            `Velocidad de ${metrics.speed} tok/s — valor con cap usado en el ranking (crudo: ${model.speedTps} sin cap)`
+          );
+        } else {
           reasons.push(
             `Velocidad de ${model.speedTps} tokens/seg — respuestas fluidas sin esperas`
           );
         }
         break;
       case "context":
-        reasons.push(
-          `Ventana de contexto de ${formatContext(model.contextWindow)} — maneja documentos extensos`
-        );
+        if (model.contextWindow > 256_000) {
+          reasons.push(
+            `Ventana de contexto de ${formatContext(metrics.context)} — valor con cap usado en el ranking (crudo: ${formatContext(model.contextWindow)} sin cap)`
+          );
+        } else {
+          reasons.push(
+            `Ventana de contexto de ${formatContext(model.contextWindow)} — maneja documentos extensos`
+          );
+        }
         break;
       case "reliability": {
         if (model.zeroevalFailureRate != null && model.zeroevalTotalCalls != null) {
@@ -1062,15 +1103,19 @@ function generateReasons(
         } else if (model.zeroevalFailureRate != null) {
           const successRate = ((1 - model.zeroevalFailureRate) * 100).toFixed(1);
           reasons.push(`Confiabilidad de producción: ${successRate}% (ZeroEval)`);
+        } else {
+          // Sin evidencia ZeroEval → baseline 0.95; se muestra como estimado.
+          reasons.push(`Confiabilidad estimada (baseline 0.95 — sin datos ZeroEval)`);
         }
         break;
       }
     }
   }
 
-  // Mode-specific note
+  // Mode-specific note — eslogan de gratuidad honesto según freeAccess real
   if (mode === "solo-gratis") {
-    reasons.push(`Disponible 100% gratis — sin tarjeta de crédito requerida`);
+    const eslogan = sloganForFreeAccess(model.freeAccess, model.priceInputUsd === 0);
+    if (eslogan) reasons.push(eslogan);
   }
 
   return reasons.slice(0, 3);
@@ -1159,6 +1204,9 @@ export interface RecommendOptions {
   // hard filter (Capa 2) additionally excludes models whose most aggressive
   // quantization (Q2_K) still exceeds the user's VRAM. Per MD Función C.
   hardwareVram?: number;
+  // Display consistente (opcional, aditivo): moneda/tasa del usuario para las
+  // razones. Si no se pasa, las razones conservan el texto de hoy (PEN/3.714).
+  currency?: RecommendCurrency;
 }
 
 export function recommend(
@@ -1271,7 +1319,7 @@ export function recommend(
     model: r.model,
     score: r.score,
     rank: i + 1,
-    reasons: generateReasons(r.model, r.metrics, category, activeMode, weights),
+    reasons: generateReasons(r.model, r.metrics, category, activeMode, weights, options?.currency),
     metrics: {
       efficiencyCost: r.metrics.efficiencyCost,
       elo: r.model.elo,
