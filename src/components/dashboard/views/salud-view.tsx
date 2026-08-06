@@ -30,6 +30,7 @@ import {
   Send,
   ChevronRight,
   ExternalLink,
+  Code2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,16 +56,46 @@ const STATUS_META = {
 // URLs públicas de cada fuente integrada en el orquestador. Las claves deben
 // coincidir EXACTAMENTE con los `health.id` que devuelven los fetchers de
 // src/lib/orchestrator.ts (verificado: 9 fuentes).
-const SOURCE_URLS: Record<string, string> = {
-  "artificial-analysis": "https://artificialanalysis.ai",
-  "litellm": "https://github.com/BerriAI/litellm",
-  "arena-ai": "https://lmarena.ai",
-  "exchange-rate": "https://open.er-api.com",
-  "huggingface-hub": "https://huggingface.co",
-  "openrouter": "https://openrouter.ai",
-  "models-dev": "https://models.dev",
-  "benchlm": "https://benchlm.ai",
-  "zeroeval": "https://www.zeroeval.com",
+// `web`: sitio principal de la fuente (para que el humano entienda qué es).
+// `api`: endpoint HTTP exacto que invoca el orquestador (verificado en
+//        src/lib/orchestrator.ts a las líneas indicadas en comentarios).
+const SOURCE_URLS: Record<string, { web: string; api: string }> = {
+  "artificial-analysis": {
+    web: "https://artificialanalysis.ai",
+    api: "https://artificialanalysis.ai/api/v2/language/models/free", // orchestrator.ts:568
+  },
+  "litellm": {
+    web: "https://github.com/BerriAI/litellm",
+    api: "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json", // orchestrator.ts:711
+  },
+  "arena-ai": {
+    web: "https://lmarena.ai",
+    api: "https://api.wulong.dev/arena-ai-leaderboards/v1/leaderboard?name=text", // orchestrator.ts:822
+  },
+  "exchange-rate": {
+    web: "https://open.er-api.com",
+    api: "https://open.er-api.com/v6/latest/USD", // orchestrator.ts:885
+  },
+  "huggingface-hub": {
+    web: "https://huggingface.co",
+    api: "https://huggingface.co/api/models", // orchestrator.ts:1059 (con ?author=…)
+  },
+  "openrouter": {
+    web: "https://openrouter.ai",
+    api: "https://openrouter.ai/api/v1/models", // orchestrator.ts:1374
+  },
+  "models-dev": {
+    web: "https://models.dev",
+    api: "https://models.dev/models.json", // orchestrator.ts:2051 (+ providers.json, catalog.json)
+  },
+  "benchlm": {
+    web: "https://benchlm.ai",
+    api: "https://benchlm.ai/data", // orchestrator.ts:2243 BASE
+  },
+  "zeroeval": {
+    web: "https://www.zeroeval.com",
+    api: "https://api.zeroeval.com/v1/models/metrics", // orchestrator.ts:2416
+  },
 };
 
 // localStorage key for the user-supplied AA API key override.
@@ -501,15 +532,24 @@ export function SaludView() {
         </Card>
       </div>
 
-      {/* AA API Key override (user-supplied key — P1A-DATA X-AA-Key header) */}
+      {/* AA API Key override (user-supplied key — el route handler la reenvía
+          como x-api-key a la API de Artificial Analysis) */}
       <Card className="bg-[var(--bg-surface)] border-[var(--border-default)]">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-1.5">
             <Key className="h-4 w-4 text-[var(--brand-primary)]" />
-            Configuración de API Key
+            Token de Artificial Analysis
           </CardTitle>
           <CardDescription className="text-xs">
-            Override del orquestador — tu key se envía vía header <code className="text-[var(--brand-primary)]">X-AA-Key</code> al force-refresh.
+            Para Inteligencia Index, Coding Index, Agentic Index y velocidad. Obtén el tuyo gratis creando una cuenta en{" "}
+            <a href="https://artificialanalysis.ai/login" target="_blank" rel="noopener" className="text-[var(--brand-primary)] underline">
+              artificialanalysis.ai/login
+            </a>{" "}
+            (free tier: 1.000 req/día). Ver la{" "}
+            <a href="https://artificialanalysis.ai/api-reference" target="_blank" rel="noopener" className="text-[var(--brand-primary)] underline">
+              documentación de la API
+            </a>
+            .
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -557,7 +597,9 @@ export function SaludView() {
             )}
           </div>
           <p className="text-[10px] text-[var(--text-disabled)]">
-            Tu key se guarda solo en este navegador (localStorage). No se envía a ningún servidor más que al orquestador del dashboard.
+            Tu key se guarda solo en este navegador (localStorage). Se envía al orquestador vía header{" "}
+            <code className="text-[var(--brand-primary)]">X-AA-Key</code>, que la reenvía a la API de AA como{" "}
+            <code className="text-[var(--brand-primary)]">x-api-key</code>. Sin key, se usa la variable de entorno del despliegue.
           </p>
         </CardContent>
       </Card>
@@ -825,15 +867,26 @@ function SourceRow({
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm font-medium truncate">{source.name}</span>
             {SOURCE_URLS[source.id] && (
-              <a
-                href={SOURCE_URLS[source.id]}
-                target="_blank"
-                rel="noreferrer"
-                title={`Abrir fuente: ${SOURCE_URLS[source.id]}`}
-                className="inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
-              >
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </a>
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <a
+                  href={SOURCE_URLS[source.id].web}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Sitio: ${SOURCE_URLS[source.id].web}`}
+                  className="inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+                <a
+                  href={SOURCE_URLS[source.id].api}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`API que usa el orquestador: ${SOURCE_URLS[source.id].api}`}
+                  className="inline-flex items-center text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors"
+                >
+                  <Code2 className="h-3 w-3" />
+                </a>
+              </span>
             )}
           </div>
           <div className="text-[11px] text-[var(--text-secondary)] truncate">{source.note}</div>
