@@ -989,13 +989,30 @@ function generateReasons(
     if (weight === 0) continue;
     switch (criterion) {
       case "efficiencyCost": {
-        const blended = computeBlendedPriceUsd(model);
+        // Fix bug "Tier gratuito" contradictorio: pasar `mode` para que la razón
+        // coincida con el ranking. En MYPE/Equilibrado/solo-gratis, free-limited = $0
+        // (free tier); en Calidad se cita el precio API real. Si blended=0 pero el
+        // modelo tiene precio API real >0 (free-limited), se muestra transparencia
+        // total: el usuario ve "free tier $0" + el precio API real que pagaría si
+        // se pasa de tier. 100% confiable y verificable, sin tocar el ranking.
+        const blended = computeBlendedPriceUsd(model, mode);
+        const cur = currency ?? { code: "PEN", symbol: "S/.", rateFromUsd: 3.714 };
         if (blended === 0) {
-          reasons.push(`Tier gratuito — costo cero, ideal para MYPE con presupuesto ajustado`);
+          const apiBlended =
+            model.priceInputUsd !== null && model.priceOutputUsd !== null
+              ? model.priceInputUsd * 0.7 + model.priceOutputUsd * 0.3
+              : null;
+          if (apiBlended !== null && apiBlended > 0) {
+            // Free-tier con precio API real >0: transparencia total.
+            reasons.push(
+              `Acceso vía free tier — costo cero, precio API real ${costRateLabel(apiBlended, cur)}`
+            );
+          } else {
+            reasons.push(`Tier gratuito — costo cero, ideal para MYPE con presupuesto ajustado`);
+          }
         } else {
           // Tasa viva del store (mismo fallback 3.714 del orquestador cuando no
           // hay currency). El II citado es el que el ranking usó (metrics.*).
-          const cur = currency ?? { code: "PEN", symbol: "S/.", rateFromUsd: 3.714 };
           const prefix =
             metrics.hasImputedData && model.intelligenceIndex == null
               ? "Eficiencia de costo (II estimado): "
