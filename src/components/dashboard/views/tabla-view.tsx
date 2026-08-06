@@ -26,7 +26,7 @@ import {
   Search, X, SlidersHorizontal, ArrowUpDown, ArrowUp, ArrowDown,
   Copy, Check, GitCompareArrows, Database, RotateCcw, CheckCircle2, Columns,
   Download, Star, FolderOpen, Monitor,
-  Wrench, Eye, Braces, Brain, Mic, Volume2, FileText, Globe, RefreshCw, Zap,
+  Wrench, Eye, Braces, Brain, Mic, Volume2, FileText, Globe, RefreshCw, Zap, Info,
   ShieldCheck, Stethoscope, Heart, Flame, TrendingUp, Activity, ChevronDown, Save,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
@@ -387,26 +387,26 @@ export function TablaView() {
           <table className={cn("w-full table-dense", Object.entries(visibleCols).filter(([_, v]) => !v).map(([k]) => `hide-col-${k}`).join(" "))}>
             <thead className="bg-[var(--bg-elevated)] sticky top-0 z-40">
               <tr>
-                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky tooltip="Nombre del modelo y su proveedor. Click en el nombre para copiarlo · doble click en la fila para ver la ficha técnica." />
-                <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Precio combinado de entrada/salida (70/30) en USD por millón de tokens. 0 = Gratis. Con cache se muestra el ahorro de cache hit." />
-                <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Costo por punto de Intelligence Index (precio blended ÷ inteligencia): qué tan rentable es el modelo por su capacidad." />
-                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-contextWindow" tooltip="Ventana de contexto en tokens (usa el valor de OpenRouter cuando existe)." />
-                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-intelligenceIndex" tooltip="Intelligence Index: puntaje compuesto de capacidad del modelo. El color indica el nivel." />
-                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-codingIndex" tooltip="Índice de habilidad de programación (BenchLM)." />
-                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-agenticIndex" tooltip="Índice de capacidad agéntica: uso de herramientas y tareas multi-paso (BenchLM)." />
-                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-speedTps" tooltip="Velocidad de generación en tokens por segundo." />
-                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-ttftMs" tooltip="Time To First Token: latencia hasta el primer token (ms). Distingue la parte de razonamiento de la respuesta." />
-                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-elo" tooltip="Puntuación Elo de calidad (BenchLM). Pasa el cursor sobre el valor de la celda para ver intervalo de confianza y votos." />
-                <Th label="Confianza" className="col-eloCi" tooltip="Intervalo de confianza (±) del Elo y votos que lo respaldan: menor CI y más votos = ranking más fiable." />
-                <Th label="Cutoff" className="col-knowledgeCutoff" tooltip="Fecha de corte de conocimiento del modelo (usa OpenRouter cuando existe)." />
-                <Th label="Params" className="col-hfParameters" tooltip="Parámetros del modelo en miles de millones (B). MoE = arquitectura Mixture of Experts." />
-                <Th label="Capacidades" className="col-capabilities" tooltip="Capacidades del modelo: razonamiento, visión, audio, tool use, etc." />
-                <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" className="col-reliability" onClickGlossary={() => openGlossary("Confiabilidad ZeroEval")} />
+                <Th label="Modelo" sortKey="name" currentSort={sortKey} dir={sortDir} onSort={handleSort} sticky tooltip="Nombre del modelo y su proveedor. Click en el nombre para copiarlo · doble click en la fila para ver la ficha técnica." onClickGlossary={() => openGlossary("Modelo")} />
+                <Th label="Blended" sortKey="blendedUsd" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Precio combinado de entrada/salida (70/30) en USD por millón de tokens. 0 = Gratis. Con cache se muestra el ahorro de cache hit." onClickGlossary={() => openGlossary("Blended Price")} />
+                <Th label="Eficiencia" sortKey="efficiencyCost" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Costo por punto de Intelligence Index (precio blended ÷ inteligencia): qué tan rentable es el modelo por su capacidad." onClickGlossary={() => openGlossary("Efficiency Cost")} />
+                <Th label="Contexto" sortKey="contextWindow" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-contextWindow" tooltip="Ventana de contexto en tokens (usa el valor de OpenRouter cuando existe)." onClickGlossary={() => openGlossary("Context Window")} />
+                <Th label="Intel." sortKey="intelligenceIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-intelligenceIndex" tooltip="Intelligence Index: puntaje compuesto de capacidad del modelo. El color indica el nivel." onClickGlossary={() => openGlossary("Intelligence Index")} />
+                <Th label="Coding" sortKey="codingIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-codingIndex" tooltip="Índice de habilidad de programación (BenchLM)." onClickGlossary={() => openGlossary("Coding Index")} />
+                <Th label="Agentic" sortKey="agenticIndex" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-agenticIndex" tooltip="Índice de capacidad agéntica: uso de herramientas y tareas multi-paso (BenchLM)." onClickGlossary={() => openGlossary("Agentic Index")} />
+                <Th label="Vel." sortKey="speedTps" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-speedTps" tooltip="Velocidad de generación en tokens por segundo." onClickGlossary={() => openGlossary("Speed TPS")} />
+                <Th label="TTFT" sortKey="ttftMs" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-ttftMs" tooltip="Time To First Token: latencia hasta el primer token (ms). Distingue la parte de razonamiento de la respuesta." onClickGlossary={() => openGlossary("TTFT")} />
+                <Th label="Elo" sortKey="elo" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" className="col-elo" tooltip="Puntuación Elo de calidad (BenchLM). Pasa el cursor sobre el valor de la celda para ver intervalo de confianza y votos." onClickGlossary={() => openGlossary("Elo Rating")} />
+                <Th label="Confianza" className="col-eloCi" tooltip="Intervalo de confianza (±) del Elo y votos que lo respaldan: menor CI y más votos = ranking más fiable." onClickGlossary={() => openGlossary("Elo CI")} />
+                <Th label="Cutoff" className="col-knowledgeCutoff" tooltip="Fecha de corte de conocimiento del modelo (usa OpenRouter cuando existe)." onClickGlossary={() => openGlossary("Knowledge Cutoff")} />
+                <Th label="Params" className="col-hfParameters" tooltip="Parámetros del modelo en miles de millones (B). MoE = arquitectura Mixture of Experts." onClickGlossary={() => openGlossary("Parámetros")} />
+                <Th label="Capacidades" className="col-capabilities" tooltip="Capacidades del modelo: razonamiento, visión, audio, tool use, etc." onClickGlossary={() => openGlossary("Capacidades")} />
+                <Th label="Confiab." align="center" tooltip="Confiabilidad de producción (ZeroEval): 🟢 ≥95% · 🟡 ≥85% · 🔴 <85% — basado en failure rate de llamadas reales monitoreadas" className="col-reliability" onClickGlossary={() => openGlossary("Reliability")} />
                 <Th className="col-hfHealth" label={<span className="inline-flex items-center gap-1"><Stethoscope className="h-3 w-3" /> Repo</span>} tooltip="Salud del repositorio HuggingFace. ✓ activo · ⚠ gated · ✗ disabled" onClickGlossary={() => openGlossary("Salud del Repo")} />
                 <Th className="col-hfDownloads" label={<span className="inline-flex items-center gap-1"><Download className="h-3 w-3" /> DL <Flame className="h-3 w-3" /></span>} sortKey="hfDownloads" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Descargas acumuladas + trending (velocidad reciente)" onClickGlossary={() => openGlossary("Descargas HF")} />
                 <Th className="col-hfLikes" label={<span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> LK</span>} sortKey="hfLikes" currentSort={sortKey} dir={sortDir} onSort={handleSort} align="right" tooltip="Likes en HuggingFace Hub (señal de calidad)" onClickGlossary={() => openGlossary("Likes HF")} />
-                <Th label={<span className="flex items-center gap-1"><FileText className="h-3 w-3" /> Ficha</span>} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" />
-                <Th label="Comp." tooltip="Agregar o quitar el modelo de la comparación." />
+                <Th label={<span className="flex items-center gap-1"><FileText className="h-3 w-3" /> Ficha</span>} tooltip="Ver ficha técnica completa (HuggingFace): spaces, model-index, chat_template, sha, usedStorage, library_name" onClickGlossary={() => openGlossary("Ficha Técnica")} />
+                <Th label="Comp." tooltip="Agregar o quitar el modelo de la comparación." onClickGlossary={() => openGlossary("HRE-TOPSIS")} />
               </tr>
             </thead>
             <tbody>
@@ -590,14 +590,32 @@ const FilterPanel = memo(function FilterPanel({
         {/* === FILTROS BÁSICOS === */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
           <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Búsqueda</span></label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                    <span className="flex items-center gap-1 cursor-help">Búsqueda<Info className="h-3 w-3 opacity-50" /></span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Busca por nombre del modelo o proveedor mientras escribes (filtrado en vivo).</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]" />
               <Input value={draft.search} onChange={(e) => update({ search: e.target.value })} placeholder="Nombre, proveedor… (en vivo)" className="h-7 pl-8 text-xs bg-[var(--bg-elevated)]" />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Precio blended máx.</span></label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                    <span className="flex items-center gap-1 cursor-help">Precio blended máx.<Info className="h-3 w-3 opacity-50" /></span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Filtra por precio combinado de entrada/salida (70/30) por millón de tokens. Arrastra a la izquierda para bajar el máximo.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
               min={0} 
@@ -613,7 +631,16 @@ const FilterPanel = memo(function FilterPanel({
           </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Intelligence mín.</span></label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                    <span className="flex items-center gap-1 cursor-help">Intelligence mín.<Info className="h-3 w-3 opacity-50" /></span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Intelligence Index mínimo (0-100): puntaje compuesto de capacidad del modelo.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center justify-between space-x-4">
             <Slider 
               min={0} 
@@ -629,7 +656,16 @@ const FilterPanel = memo(function FilterPanel({
           </div>
           </div>
           <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Contexto mín.</span></label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                    <span className="flex items-center gap-1 cursor-help">Contexto mín.<Info className="h-3 w-3 opacity-50" /></span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Ventana de contexto mínima en tokens (hasta 2M). Útil para modelos que procesan documentos grandes.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center justify-between space-x-4">
               <Slider 
                 min={0} 
@@ -648,11 +684,29 @@ const FilterPanel = memo(function FilterPanel({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-2 mt-2">
           <div className="space-y-1">
-             <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Proveedores</span></label>
+             <TooltipProvider delayDuration={200}>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                     <span className="flex items-center gap-1 cursor-help">Proveedores<Info className="h-3 w-3 opacity-50" /></span>
+                   </label>
+                 </TooltipTrigger>
+                 <TooltipContent side="top" className="text-xs max-w-xs">Selecciona uno o más proveedores. 'Todos los proveedores' no aplica filtro de proveedor.</TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
              <ProviderMultiSelect providers={providers} selected={draft.providers} onChange={(s) => update({ providers: s })} />
           </div>
           <div className="space-y-1">
-            <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Cutoff mínimo</span></label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                    <span className="flex items-center gap-1 cursor-help">Cutoff mínimo<Info className="h-3 w-3 opacity-50" /></span>
+                  </label>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Fecha de corte de conocimiento mínimo del modelo: solo modelos entrenados en esa fecha o después.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <input type="month" value={draft.minKnowledgeCutoff} onChange={(e) => update({ minKnowledgeCutoff: e.target.value })} className="h-7 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] px-2 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]" />
           </div>
         </div>
@@ -660,21 +714,40 @@ const FilterPanel = memo(function FilterPanel({
         {/* CAPABILITIES multi-select (Básico) */}
         <div className="mt-2 pt-2 border-t border-[var(--border-default)]">
           <div className="flex items-center justify-between mb-1">
-            <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
-              Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
-            </div>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] font-medium">
+                    Capacidades {draft.capabilities.length > 0 && <span className="num text-[var(--brand-primary)]">({draft.capabilities.length})</span>}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs max-w-xs">Filtra por capacidades del modelo: razonamiento, visión, audio, tool use, etc.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <div className="flex items-center gap-1">
               <span className="text-[10px] text-[var(--text-secondary)]">Lógica:</span>
-              <button
-                onClick={() => onCapabilitiesLogicChange("and")}
-                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
-                title="El modelo debe tener TODAS las capacidades seleccionadas"
-              >Todas (AND)</button>
-              <button
-                onClick={() => onCapabilitiesLogicChange("or")}
-                className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
-                title="El modelo debe tener AL MENOS UNA de las capacidades seleccionadas"
-              >Cualquiera (OR)</button>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => onCapabilitiesLogicChange("and")}
+                      className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "and" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                    >Todas (AND)</button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-xs">El modelo debe tener TODAS las capacidades seleccionadas</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => onCapabilitiesLogicChange("or")}
+                      className={cn("rounded px-2 py-0.5 text-[10px] border transition-colors", capabilitiesLogic === "or" ? "bg-[var(--brand-primary-subtle)] border-[var(--brand-primary)] text-[var(--brand-primary)]" : "bg-[var(--bg-elevated)] border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}
+                    >Cualquiera (OR)</button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-xs">El modelo debe tener AL MENOS UNA de las capacidades seleccionadas</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -711,7 +784,14 @@ const FilterPanel = memo(function FilterPanel({
           <div className="animate-in fade-in slide-in-from-top-2">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3 mt-1 pt-2 border-t border-[var(--border-default)]">
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Velocidad de generación en tokens por segundo (basado en benchmarks)"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Velocidad mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">Velocidad de generación en tokens por segundo (basado en benchmarks)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100} step={5} value={[draft.minSpeed]} onValueChange={([val]) => update({ minSpeed: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.minSpeed === 0 ? '-' : draft.minSpeed}</span>
@@ -719,7 +799,14 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Número mínimo de batallas evaluadas en Chatbot Arena"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Votos Elo mín. <span className="cursor-help opacity-50">(?)</span></span></label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">Número mínimo de batallas evaluadas en Chatbot Arena</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={100000} step={1000} value={[draft.minEloVotes]} onValueChange={([val]) => update({ minEloVotes: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{draft.minEloVotes === 0 ? '-' : `${(draft.minEloVotes/1000).toFixed(0)}k`}</span>
@@ -727,7 +814,14 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Margen de error del puntaje Elo (menor = más confiable)"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between"><span>Confianza Elo máx. (±) <span className="cursor-help opacity-50">(?)</span></span></label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">Margen de error del puntaje Elo (menor = más confiable)</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={3} max={30} step={1} value={[draft.maxEloCi]} onValueChange={([val]) => update({ maxEloCi: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-8 text-right shrink-0">{draft.maxEloCi >= 30 ? '-' : `±${draft.maxEloCi}`}</span>
@@ -735,9 +829,16 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).">
-                  <span>ZeroEval mín. <span className="cursor-help opacity-50">(?)</span></span>
-                </label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                        <span>ZeroEval mín. <span className="cursor-help opacity-50">(?)</span></span>
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">Filtra modelos por reliability = 1 − failure_rate (ZeroEval). Modelos sin datos se tratan como 95% (baseline).</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={99} step={1} value={[draft.minReliability ?? 0]} onValueChange={([val]) => update({ minReliability: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{(draft.minReliability ?? 0) === 0 ? '-' : `≥${(draft.minReliability ?? 0)}%`}</span>
@@ -745,9 +846,16 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between" title="Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.">
-                  <span>Hardware (VRAM) <span className="cursor-help opacity-50">(?)</span></span>
-                </label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                        <span>Hardware (VRAM) <span className="cursor-help opacity-50">(?)</span></span>
+                      </label>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs max-w-xs">Excluye modelos cuyo cálculo en cuantización agresiva aún supera tu VRAM.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <select
                   value={String(draft.hardwareFilterVram ?? 0)}
                   onChange={(e) => update({ hardwareFilterVram: Number(e.target.value) })}
@@ -764,9 +872,16 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
-                  <span>BenchLM mín.</span>
-                </label>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                      <span className="flex items-center gap-1 cursor-help">BenchLM mín.<Info className="h-3 w-3 opacity-50" /></span>
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-xs">Umbral mínimo del puntaje BenchLM del modelo (0-90).</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
                 <div className="flex items-center justify-between space-x-4">
                   <Slider min={0} max={90} step={5} value={[draft.minBenchLmScore ?? 0]} onValueChange={([val]) => update({ minBenchLmScore: val })} className="flex-1" />
                   <span className="text-[var(--text-primary)] font-mono text-xs w-10 text-right shrink-0">{(draft.minBenchLmScore ?? 0) === 0 ? '-' : `≥${(draft.minBenchLmScore ?? 0)}`}</span>
@@ -774,9 +889,16 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
-                  <span>Arquitectura</span>
-                </label>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex justify-between">
+                      <span className="flex items-center gap-1 cursor-help">Arquitectura<Info className="h-3 w-3 opacity-50" /></span>
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-xs">Filtra por tipo de arquitectura: Densa o Mixture of Experts (MoE).</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
                 <select
                   value={draft.architecture ?? "all"}
                   onChange={(e) => update({ architecture: e.target.value as "all" | "dense" | "moe" })}
@@ -789,15 +911,22 @@ const FilterPanel = memo(function FilterPanel({
               </div>
 
               <div className="space-y-1.5 flex flex-col justify-end">
-                <label className="flex items-center gap-2 h-7 cursor-pointer text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={draft.hideAbandoned ?? false}
-                    onChange={(e) => update({ hideAbandoned: e.target.checked })}
-                    className="accent-[var(--brand-accent)] h-3.5 w-3.5 rounded border-[var(--border-default)] bg-[var(--bg-elevated)]"
-                  />
-                  Ocultar modelos obsoletos/abandonados
-                </label>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="flex items-center gap-2 h-7 cursor-pointer text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={draft.hideAbandoned ?? false}
+                        onChange={(e) => update({ hideAbandoned: e.target.checked })}
+                        className="accent-[var(--brand-accent)] h-3.5 w-3.5 rounded border-[var(--border-default)] bg-[var(--bg-elevated)]"
+                      />
+                      Ocultar modelos obsoletos/abandonados
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs max-w-xs">Excluye modelos no mantenidos o abandonados del ranking.</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               </div>
             </div>
           </div>
@@ -1208,10 +1337,12 @@ function TtftCell({ ttftMs, ttftAnswerMs, endToEndMs }: { ttftMs: number | null;
 function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip, onClickGlossary, sticky, className }: { label: React.ReactNode; sortKey?: SortKey; currentSort?: SortKey; dir?: SortDir; onSort?: (k: SortKey) => void; align?: "left" | "right" | "center"; tooltip?: string; onClickGlossary?: () => void; sticky?: boolean; className?: string; }) {
   const isSortable = !!sortKey; const isActive = sortKey === currentSort;
   const content = (
-    <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
-      {label}
-      {isSortable && <span className="opacity-60">{isActive && dir === "asc" ? <ArrowUp className="h-3 w-3" /> : isActive && dir === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-40" />}</span>}
-      {tooltip && <span className="text-[var(--text-disabled)] hover:text-[var(--brand-primary)] cursor-help" onClick={(e) => { e.stopPropagation(); onClickGlossary?.(); }}>ⓘ</span>}
+    <span className="inline-flex items-center gap-1">
+      <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
+        {label}
+        {isSortable && <span className="opacity-60">{isActive && dir === "asc" ? <ArrowUp className="h-3 w-3" /> : isActive && dir === "desc" ? <ArrowDown className="h-3 w-3" /> : <ArrowUpDown className="h-3 w-3 opacity-40" />}</span>}
+      </span>
+      {tooltip && <span className="shrink-0 text-[var(--text-disabled)] hover:text-[var(--brand-primary)] cursor-help" onClick={(e) => { e.stopPropagation(); onClickGlossary?.(); }}><Info className="h-3.5 w-3.5" /></span>}
     </span>
   );
   return (
@@ -1228,7 +1359,7 @@ function Th({ label, sortKey, currentSort, dir, onSort, align = "left", tooltip,
           <TooltipContent side="top" className="max-w-xs text-xs pointer-events-none flex flex-col gap-1.5">
             <div>{tooltip}</div>
             {onClickGlossary && (
-              <div className="opacity-75 font-medium">Click ⓘ para más en el glosario</div>
+              <div className="opacity-75 font-medium">Click en el ícono para abrir el glosario</div>
             )}
           </TooltipContent>
         </Tooltip>

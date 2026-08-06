@@ -474,7 +474,10 @@ export function ChartExpandDialog({
     ]
   );
 
-  // Leyenda: explícita si viene, sino derivada de data (par provider + color)
+  // Leyenda: explícita si viene, sino derivada de data (par provider + color).
+  // El z por provider es el MÁXIMO de sus puntos (mismo criterio que la leyenda
+  // de los charts no expandidos) y el array se ordena de mayor a menor II, para
+  // que el orden en el modo expandido coincida con el del modo no expandido.
   const legendItems = useMemo(() => {
     if (legendData) return legendData;
     const map = new Map<string, { provider: string; color: string; z?: number | null }>();
@@ -482,13 +485,17 @@ export function ChartExpandDialog({
       const provider = row["provider"] as string | undefined;
       const color = row["color"] as string | undefined;
       if (typeof provider === "string" && typeof color === "string") {
-        if (!map.has(provider)) {
-          const z = typeof row["z"] === "number" ? (row["z"] as number) : undefined;
+        const z = typeof row["z"] === "number" ? (row["z"] as number) : undefined;
+        const existing = map.get(provider);
+        if (!existing) {
           map.set(provider, { provider, color, z });
+        } else if (z != null && (existing.z == null || z > existing.z)) {
+          // Conserva el mayor II del proveedor, no el del primer punto.
+          existing.z = z;
         }
       }
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => (b.z ?? 0) - (a.z ?? 0));
   }, [legendData, data]);
 
   const fichaModel = fichaModelId
@@ -511,7 +518,7 @@ export function ChartExpandDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="w-[90vw] !max-w-[90vw] xl:!max-w-[1400px] h-[85vh] max-h-[85vh] rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-strong)] shadow-[var(--shadow-high)] flex flex-col gap-0 p-0 overflow-hidden"
+        className="w-[95vw] !max-w-[95vw] h-[92vh] max-h-[92vh] rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-strong)] shadow-[var(--shadow-high)] flex flex-col gap-0 p-0 overflow-hidden"
       >
         {/* Header: título + controles de zoom + cierre + leyenda + selector temporal */}
         <div className="shrink-0 px-4 pt-3 pb-1 border-b border-[var(--border-strong)]">
@@ -610,7 +617,7 @@ export function ChartExpandDialog({
         {/* Gráfico ampliado — el contexto inyecta ReferenceArea y onMouseDown
             onMouseMove onMouseUp que cada vista engancha a su chart Recharts. */}
         <div className="flex-1 min-h-0 flex flex-col p-2">
-          <div data-chart-id={chartId} className="h-[70vh] max-h-full w-full">
+          <div data-chart-id={chartId} className="h-full min-h-0 w-full">
             <ResponsiveContainer width="100%" height="100%">
               {/* Recharts exige un único ReactElement; la vista debe pasar
                   exactamente un chart (LineChart/ScatterChart). */}
@@ -618,15 +625,18 @@ export function ChartExpandDialog({
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Ficha técnica anidada — patrón tabla-view.tsx */}
-        {fichaModelId && (
-          <FichaTecnicaModal
-            model={fichaModel}
-            onClose={() => setFichaModelId(null)}
-          />
-        )}
       </DialogContent>
+
+      {/* Ficha técnica — se renderiza FUERA del DialogContent (hermano del
+          Dialog) con el mismo patrón que tabla-view.tsx: el modal abre su
+          propio portal/z-index, sin quedar anidado dentro del overflow-hidden
+          ni del stacking del dialog expandido. */}
+      {fichaModelId && (
+        <FichaTecnicaModal
+          model={fichaModel}
+          onClose={() => setFichaModelId(null)}
+        />
+      )}
     </Dialog>
   );
 }

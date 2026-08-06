@@ -66,9 +66,64 @@ interface FichaTecnicaModalProps {
   onClose: () => void;
 }
 
+// Caché en memoria a nivel de módulo: guarda el modelo completo resuelto desde
+// /api/dashboard (payload completo) por id, para no repetir el fetch en cada
+// apertura de la ficha. No expira (vale para la sesión actual).
+const fullModelCache = new Map<string, AIModel>();
+
+// Forma de la respuesta del endpoint /api/dashboard (payload completo).
+interface FullDashboardResponse {
+  models?: AIModel[];
+}
+
 export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
   const hfModelId = model?.hfRepoId || (model?.slug ? resolveHfId(model) : null);
   const noHfId = !hfModelId;
+
+  // Detección de modelo "resumido" (vino del payload ligero /api/dashboard?fields=summary):
+  // el payload ligero excluye benchlm* y or* (salvo orInputModalities), así que la
+  // ausencia simultánea de ambos campos delata un modelo incompleto. Los modelos que
+  // sí los traen (tabla maestra) son completos y no requieren resolución.
+  const isSummaryModel =
+    !!model && model.benchlmDisplayScore == null && model.orContextLength == null;
+
+  // Modelo completo resuelto bajo demanda; si es null, se usa el modelo original.
+  const [fullModel, setFullModel] = useState<AIModel | null>(null);
+
+  useEffect(() => {
+    if (!isSummaryModel || !model?.id) return;
+
+    const cached = fullModelCache.get(model.id);
+    if (cached) {
+      setFullModel(cached);
+      return;
+    }
+
+    let cancelled = false;
+    fetch("/api/dashboard")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: FullDashboardResponse) => {
+        if (cancelled) return;
+        const found = data.models?.find((m) => m.id === model.id);
+        if (found) {
+          fullModelCache.set(model.id, found);
+          setFullModel(found);
+        }
+      })
+      .catch(() => {
+        // Degradación silenciosa: si el fetch falla, se sigue mostrando el
+        // modelo resumido sin romper el modal ni mostrar error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSummaryModel, model?.id]);
+
+  // Modelo efectivo para render: el completo si ya llegó, si no el original.
+  const effectiveModel = fullModel ?? model;
 
   const [details, setDetails] = useState<HfModelDetails | null>(() => {
     const entry = hfModelId ? getHfCache(hfModelId) : undefined;
@@ -193,7 +248,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
 
 
             {/* ====== ARTIFICIAL ANALYSIS ====== */}
-            {model && !loading && (
+            {effectiveModel && !loading && (
               <Section
                 className="delay-75"
                 title="Artificial Analysis — Inteligencia y Rendimiento"
@@ -201,12 +256,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 color="var(--brand-primary)"
                 description="Métricas core y benchmarks (artificialanalysis.ai + LMSYS Chatbot Arena)"
               >
-                <ArtificialAnalysisSection model={model} />
+                <ArtificialAnalysisSection model={effectiveModel} />
               </Section>
             )}
 
             {/* ====== BENCHLM ====== */}
-            {model && model.benchlmDisplayScore != null && !loading && (
+            {effectiveModel && effectiveModel.benchlmDisplayScore != null && !loading && (
               <Section
                 className="delay-100"
                 title="BenchLM — Perfil por Categoría"
@@ -214,12 +269,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 color="var(--brand-primary)"
                 description="8 categorías evaluadas independientemente · 5ª fuente de datos (benchlm.ai)"
               >
-                <BenchlmProfileSection model={model} />
+                <BenchlmProfileSection model={effectiveModel} />
               </Section>
             )}
 
             {/* ====== ZEROEVAL ====== */}
-            {model && model.zeroevalFailureRate != null && !loading && (
+            {effectiveModel && effectiveModel.zeroevalFailureRate != null && !loading && (
               <Section
                 className="delay-150"
                 title="ZeroEval — Confiabilidad de Producción"
@@ -227,12 +282,12 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 color="var(--color-success)"
                 description="Métricas en tiempo real de producción · 6ª fuente de datos (api.zeroeval.com)"
               >
-                <ZeroevalReliabilitySection model={model} />
+                <ZeroevalReliabilitySection model={effectiveModel} />
               </Section>
             )}
 
             {/* ====== OPENROUTER ====== */}
-            {model && model.orModelId != null && !loading && (
+            {effectiveModel && effectiveModel.orModelId != null && !loading && (
               <Section
                 className="delay-200"
                 title="OpenRouter — Catálogo y Capacidades"
@@ -240,7 +295,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                 color="var(--brand-primary)"
                 description="Pricing, modalities, reasoning, benchmarks · 7ª fuente de datos (openrouter.ai)"
               >
-                <OpenRouterSection model={model} />
+                <OpenRouterSection model={effectiveModel} />
               </Section>
             )}
 
@@ -248,7 +303,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               
               {/* ====== CICLO DE VIDA ====== */}
-              {model && (model.benchlmSupersededBy != null || model.benchlmIsCanonicalEntry === true) && !loading && (
+              {effectiveModel && (effectiveModel.benchlmSupersededBy != null || effectiveModel.benchlmIsCanonicalEntry === true) && !loading && (
                 <Section
                   className="delay-300"
                   title="Ciclo de Vida del Modelo"
@@ -256,7 +311,7 @@ export function FichaTecnicaModal({ model, onClose }: FichaTecnicaModalProps) {
                   color="var(--color-warning)"
                   description="Vigencia y sucesión dentro de la familia del modelo · fuente: benchlm.ai"
                 >
-                  <ModelLifecycleSection model={model} />
+                  <ModelLifecycleSection model={effectiveModel} />
                 </Section>
               )}
 
