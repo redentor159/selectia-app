@@ -36,6 +36,42 @@ import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
 import { prefetchFichaForModel } from "../ficha-tecnica/hf-cache";
 
+/**
+ * Shape custom para <Scatter> en los gráficos con <Brush>.
+ *
+ * Recharts recorta el array de data del CHART (generatesDisplayedData →
+ * data.slice) y cada punto recibido por la shape es el dato ORIGINAL en
+ * `props.payload` (color, provider, id, ...) más la geometría calculada
+ * (cx, cy, size). A diferencia de <Cell>, aquí NO se usa el índice: el color
+ * y la opacidad salen del propio dato, por lo que el recorte del Brush no
+ * desalinea nada (Scatter.js renderSymbolsStatically → props = {base, ...entry}).
+ *
+ * size es el área del ZAxis (range [14,110]); radio = sqrt(area/π) equivale
+ * al círculo por defecto de Recharts. Los eventos (click/doble click/hover)
+ * se declaran en el <Scatter> padre y Recharts los re-expide por símbolo.
+ */
+export function makeScatterShape(getPointOpacity: (provider: string) => number) {
+  return (pt: any) => {
+    const d = pt?.payload ?? pt;
+    if (!d || typeof d.id !== "string") return null;
+    const area = Number(pt?.size) || 64;
+    const radius = Math.max(2, Math.sqrt(area / Math.PI));
+    const opacity = getPointOpacity(d.provider);
+    return (
+      <circle
+        cx={pt.cx}
+        cy={pt.cy}
+        r={radius}
+        fill={d.color}
+        fillOpacity={opacity}
+        stroke={d.color}
+        strokeOpacity={opacity}
+        style={{ cursor: "pointer" }}
+      />
+    );
+  };
+}
+
 export function ScatterProviderLegend({
   data,
   activeProviders,
@@ -519,6 +555,30 @@ export function AnalyticsView() {
       }));
   }, [data]);
 
+  /**
+   * Variante ORDENADA por X para el modo <Brush> del modal expandido
+   * "Velocidad vs Ventana de Contexto" (piloto).
+   *
+   * El Brush de Recharts recorta por ÍNDICE ORDINAL del array
+   * (getDisplayedData → data.slice(startIndex, endIndex+1)), NO por valor.
+   * En el timeline de Evolución los datos ya van en orden cronológico, por
+   * eso el slice = rango de tiempo contiguo y el eje se re-escala (zoom real).
+   * En los scatters los datos llegan en el orden de `data.models` (disperso),
+   * por lo que un slice cualquiera selecciona un subconjunto ARBITRARIO cuyo
+   * min/max casi coincide con el del set completo → el eje apenas se mueve y
+   * solo se ven puntos aparecer/desaparecer. Ordenar por X hace que un slice
+   * de índices sea contiguo en el valor del eje (para el dominio "auto" el
+   * eje se recalcula sobre el slice, generateCategoricalChart.js getAxisMap).
+   * Los puntos visibles SON los del rango X seleccionado.
+   */
+  const brushSpeedData = useMemo(
+    () =>
+      [...contextSpeedData]
+        .map((d, i) => ({ ...d, _origIndex: i }))
+        .sort((a, b) => a.x - b.x),
+    [contextSpeedData]
+  );
+
   const codingAgenticData = useMemo(() => {
     if (!data) return [];
     return data.models
@@ -566,6 +626,43 @@ export function AnalyticsView() {
         };
       });
   }, [data]);
+
+  /**
+   * Dominio numérico real del eje X de Eficiencia (blended price USD/M).
+   * Recharts con `allowDataOverflow=false` (default) EXPANDE cualquier
+   * dominio especificado hasta cubrir todos los datos:
+   *   domain[0] = Math.min(spec[0], dataMin), domain[1] = Math.max(spec[1], dataMax)
+   * (ChartUtils.parseSpecifiedDomain). Por eso el drag NUNCA producía zoom
+   * visual en los scatter: el rango arrastrado volvía a estirarse al rango
+   * completo. Con este dominio numérico real + allowXOverflow=true (que la
+   * vista aplica al XAxis vía ctx) el zoom se respeta y los puntos fuera del
+   * rango quedan fuera. Con escala log, el mínimo debe ser > 0.
+   */
+  const efficiencyXDomain = useMemo<[number, number]>(() => {
+    const xs = efficiencyData.map((d) => d.x).filter((v): v is number => v > 0);
+    if (xs.length === 0) return [0.01, 100];
+    const lo = Math.min(...xs);
+    const hi = Math.max(...xs);
+    if (lo === hi) return [lo * 0.5, hi * 2];
+    // Pequeño margen para que los puntos del borde no queden pegados al eje.
+    const pad = (hi - lo) * 0.05;
+    return [Math.max(0.001, lo - pad), hi + pad];
+  }, [efficiencyData]);
+
+  /**
+   * Variantes ORDENADAS por X para los modales con <Brush> (mismo motivo que
+   * brushSpeedData): el Brush recorta por índice ordinal, y con los datos
+   * ordenados un slice de índices ES un rango contiguo de valor del eje.
+   */
+  const brushCodingData = useMemo(
+    () => [...codingAgenticData].sort((a, b) => a.x - b.x),
+    [codingAgenticData]
+  );
+
+  const brushEfficiencyData = useMemo(
+    () => [...efficiencyData].sort((a, b) => a.x - b.x),
+    [efficiencyData]
+  );
 
   const openWeightsData = useMemo(() => {
     if (!data) return [];
@@ -1812,11 +1909,14 @@ export function AnalyticsView() {
         />
       )}
 
-      {/* Modal expandido: Velocidad vs Ventana de Contexto. Brush en espacio
-          log2 precomputado (design.md sección 4): el dato `x` ya es log2 del
-          contexto; el dominio restringido usa esos valores y el tickFormatter
-          2^v → K/M sigue funcionando. Click en punto abre la ficha técnica
-          (4.2b); fuera del modal el click sigue siendo toggleProvider. */}
+      {/* Modal expandido: Velocidad vs Ventana de Contexto. PILOT Brush en
+          ScatterChart. Recharts exige para el <Brush> que la data viva en el
+          CHART (no en el <Scatter>): si el Scatter lleva data propia,
+          getDisplayedData (generateCategoricalChart.js) devuelve itemsData y
+          el slice del Brush se IGNORA. Además los <Cell> se mapean por índice
+          (Scatter.js cells[index]) y se desalinean al recortar el array, así
+          que el color/clicks van en una `shape` custom que lee `payload`
+          (datos reales del punto) en vez del índice. */}
       {openChart === "velocidad-vs-contexto" && (
         <ChartExpandDialog
           open
@@ -1824,15 +1924,17 @@ export function AnalyticsView() {
           title="Velocidad vs Ventana de Contexto"
           subtitle="X = contexto (log2) · Y = velocidad (tok/s) · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
           chartId="velocidad-vs-contexto"
-          data={contextSpeedData}
+          data={brushSpeedData}
           models={data.models}
-          defaultXDomain={[12, 21]}
+          defaultXDomain={["auto", "auto"]}
           xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          interactionMode="brush"
           renderChart={(ctx) => (
             <ScatterChart
-              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              margin={{ top: 10, right: 16, bottom: 28, left: 8 }}
+              data={brushSpeedData}
               onMouseDown={ctx.onMouseDown}
               onMouseMove={ctx.onMouseMove}
               onMouseUp={ctx.onMouseUp}
@@ -1846,7 +1948,7 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Context Window (log2)"
                 domain={ctx.xDomain}
-                ticks={[13, 15, 17, 19, 21]}
+                allowDataOverflow={ctx.allowXOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -1927,36 +2029,29 @@ export function AnalyticsView() {
                 }}
               />
               <Scatter
-                data={contextSpeedData}
                 isAnimationActive={false}
-              >
-                {contextSpeedData.map((entry: any, i: number) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    fillOpacity={getPointOpacity(entry.provider)}
-                    stroke={entry.color}
-                    strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onToggleProvider(entry.provider)}
-                    onDoubleClick={() => ctx.onPointClick(entry.id)}
-                    onMouseEnter={() => {
-                      const m =
-                        data.models.find((mm) => mm.id === entry.id) ?? null;
-                      prefetchFichaForModel(m);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Scatter>
-              {ctx.refArea}
+                shape={makeScatterShape(getPointOpacity) as any}
+                onClick={(pt: any) => ctx.onToggleProvider(pt?.payload?.provider ?? pt?.provider)}
+                onDoubleClick={(pt: any) => ctx.onPointClick(pt?.payload?.id ?? pt?.id)}
+                onMouseEnter={(pt: any) => {
+                  const id = pt?.payload?.id ?? pt?.id;
+                  const m = id ? (data.models.find((mm) => mm.id === id) ?? null) : null;
+                  prefetchFichaForModel(m);
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              {ctx.brush}
             </ScatterChart>
           )}
         />
       )}
 
-      {/* Modal expandido: Coding Index vs Agentic Index. Dominio lineal real
-          [30,80] (design.md sección 4): el rango seleccionado ES el rango de
-          índices, sin transformación. Click en punto abre la ficha técnica. */}
+      {/* Modal expandido: Coding Index vs Agentic Index. Brush con la variante
+          ORDENADA por X (brushCodingData): el slider recorta por índice y los
+          datos ordenados convierten ese índice en un rango contiguo de valor;
+          el ChartExpandDialog traduce los índices a valores reales del eje y
+          allowDataOverflow=true corta los puntos fuera del rango (mismo
+          patrón verificado en velocidad-vs-contexto). Click abre ficha. */}
       {openChart === "coding-vs-agentic" && (
         <ChartExpandDialog
           open
@@ -1964,15 +2059,17 @@ export function AnalyticsView() {
           title="Coding Index vs Agentic Index"
           subtitle="X = Coding Index · Y = Agentic Index · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
           chartId="coding-vs-agentic"
-          data={codingAgenticData}
+          data={brushCodingData}
           models={data.models}
-          defaultXDomain={[30, 80]}
+          defaultXDomain={["auto", "auto"]}
           xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          interactionMode="brush"
           renderChart={(ctx) => (
             <ScatterChart
-              margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              margin={{ top: 10, right: 16, bottom: 28, left: 8 }}
+              data={brushCodingData}
               onMouseDown={ctx.onMouseDown}
               onMouseMove={ctx.onMouseMove}
               onMouseUp={ctx.onMouseUp}
@@ -1986,6 +2083,7 @@ export function AnalyticsView() {
                 dataKey="x"
                 name="Coding Index"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowXOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -2051,28 +2149,18 @@ export function AnalyticsView() {
                 }}
               />
               <Scatter
-                data={codingAgenticData}
                 isAnimationActive={false}
-              >
-                {codingAgenticData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    fillOpacity={getPointOpacity(entry.provider)}
-                    stroke={entry.color}
-                    strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onToggleProvider(entry.provider)}
-                    onDoubleClick={() => ctx.onPointClick(entry.id)}
-                    onMouseEnter={() => {
-                      const m =
-                        data.models.find((mm) => mm.id === entry.id) ?? null;
-                      prefetchFichaForModel(m);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Scatter>
-              {ctx.refArea}
+                shape={makeScatterShape(getPointOpacity) as any}
+                onClick={(pt: any) => ctx.onToggleProvider(pt?.payload?.provider ?? pt?.provider)}
+                onDoubleClick={(pt: any) => ctx.onPointClick(pt?.payload?.id ?? pt?.id)}
+                onMouseEnter={(pt: any) => {
+                  const id = pt?.payload?.id ?? pt?.id;
+                  const m = id ? (data.models.find((mm) => mm.id === id) ?? null) : null;
+                  prefetchFichaForModel(m);
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -2090,15 +2178,17 @@ export function AnalyticsView() {
           title="Eficiencia (Velocidad vs Precio)"
           subtitle="X = precio blended USD/M (log) · Y = velocidad (tok/s) · tamaño = Intelligence Index · click en un punto abre la ficha técnica"
           chartId="eficiencia"
-          data={efficiencyData}
+          data={brushEfficiencyData}
           models={data.models}
-          defaultXDomain={["auto", "auto"]}
+          defaultXDomain={efficiencyXDomain}
           xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          interactionMode="brush"
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              data={brushEfficiencyData}
               onMouseDown={ctx.onMouseDown}
               onMouseMove={ctx.onMouseMove}
               onMouseUp={ctx.onMouseUp}
@@ -2113,6 +2203,7 @@ export function AnalyticsView() {
                 name="Precio por Millón de Tokens ($)"
                 scale="log"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowXOverflow}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "var(--border-default)" }}
@@ -2179,28 +2270,18 @@ export function AnalyticsView() {
                 }}
               />
               <Scatter
-                data={efficiencyData}
                 isAnimationActive={false}
-              >
-                {efficiencyData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    fillOpacity={getPointOpacity(entry.provider)}
-                    stroke={entry.color}
-                    strokeOpacity={getPointOpacity(entry.provider)}
-                    onClick={() => ctx.onToggleProvider(entry.provider)}
-                    onDoubleClick={() => ctx.onPointClick(entry.id)}
-                    onMouseEnter={() => {
-                      const m =
-                        data.models.find((mm) => mm.id === entry.id) ?? null;
-                      prefetchFichaForModel(m);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Scatter>
-              {ctx.refArea}
+                shape={makeScatterShape(getPointOpacity) as any}
+                onClick={(pt: any) => ctx.onToggleProvider(pt?.payload?.provider ?? pt?.provider)}
+                onDoubleClick={(pt: any) => ctx.onPointClick(pt?.payload?.id ?? pt?.id)}
+                onMouseEnter={(pt: any) => {
+                  const id = pt?.payload?.id ?? pt?.id;
+                  const m = id ? (data.models.find((mm) => mm.id === id) ?? null) : null;
+                  prefetchFichaForModel(m);
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              {ctx.brush}
              </ScatterChart>
            )}
          />

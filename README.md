@@ -14,7 +14,7 @@
 
 ## 📸 Vista previa
 
-![SelectIA Dashboard](screenshots/01-resumen.png)
+![SelectIA Dashboard](docs/screenshots/01-resumen.png)
 
 ---
 
@@ -149,7 +149,7 @@ flowchart LR
     D --> E["5. selectia.vercel.app ✅"]
 ```
 
-Ver [DEPLOYMENT.md](DEPLOYMENT.md) para guía detallada.
+Ver [DEPLOYMENT.md](docs/DEPLOYMENT.md) para guía detallada.
 
 ---
 
@@ -264,7 +264,7 @@ MIT — úsalo libremente, incluyendo uso comercial.
 
 ## 🤝 Contribuir
 
-Ver [CONTRIBUTING.md](CONTRIBUTING.md).
+Ver [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 ---
 

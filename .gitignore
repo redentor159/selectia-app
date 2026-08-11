@@ -45,16 +45,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
-dev.log
-dev.out.log
-test
-prompt
+# AI Agent & IDE Metadata
+.atl/
+.codex/
+.opencode/
+.gemini/
+.impeccable/
+.claude/
+.z-ai-config/
 
-server.log
+# Temporary / Scratch Outputs
+*-edits.json
+*-failed-edits.txt
+*detector_output*.json
+subagent-edit*
+patch.js
+restore-fixes.js
+daemon-start.js
+
 # Skills directory
 /skills/
 
@@ -87,3 +95,4 @@ plugins/impeccable-live.client.ts
 app/plugins/impeccable-live.client.ts
 src/plugins/impeccable-live.client.ts
 # impeccable-live-ignore-end
+

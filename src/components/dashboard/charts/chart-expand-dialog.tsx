@@ -50,6 +50,17 @@ export interface ChartDialogContext {
   onToggleProvider: (p: string) => void;
   /** True cuando hay zoom aplicado (muestra los botones de pan y reset). */
   isZoomed: boolean;
+  /**
+   * Activar `allowDataOverflow` en el XAxis (solo modo "drag" con zoom activo).
+   * Recharts por defecto (allowDataOverflow=false) EXPANDE el dominio
+   * especificado hasta cubrir todo el rango de datos:
+   * `domain[0]=Math.min(spec, dataMin)` y `domain[1]=Math.max(spec, dataMax)`
+   * (node_modules/recharts/es6/util/ChartUtils.js → parseSpecifiedDomain).
+   * Por eso el zoom quedaba sin efecto: el rango arrastrado se estiraba de
+   * vuelta al rango completo. Con allowDataOverflow=true el dominio del zoom
+   * se RESPETA y los puntos fuera de rango quedan fuera (corte real).
+   */
+  allowXOverflow: boolean;
 }
 
 /** Resolución temporal del timeline (mismo conjunto de valores que AnalyticsView). */
@@ -190,9 +201,31 @@ export function ChartExpandDialog({
    * Dominio base actual: zoomed si hay zoom, sino defaultXDomain.
    * Recharts quiere [start,end] en escala numérica, o [catStart,catEnd]
    * para eje categórico (timeline). "auto" lo dejamos intacto.
+   *
+   * Modo "brush": el slider entrega ÍNDICES del array data; para que el
+   * zoom se vea sincronizado con el VALOR del eje (no con la posición en el
+   * array), traducimos los índices a los valores x reales usando el punto
+   * en cada extremo: data[startIdx][xDataKey] y data[endIdx][xDataKey].
+   * Requiere que la vista pase data ORDENADA por X (brushSpeedData) — así un
+   * slice de índices ES un rango contiguo del valor (y el Slider no salta
+   * desincronizado: el recap se ve como "de X1 a X2" y los puntos ajenos al
+   * rango quedan fuera). Con allowDataOverflow=true el dominio se RESPETA
+   * (parseSpecifiedDomain) y Recharts corta de verdad lo que queda afuera.
    */
-  const currentDomain: Domain =
-    zoomedDomain ?? (defaultXDomain as Domain);
+  const currentDomain: Domain = useMemo(() => {
+    if (interactionMode === "brush" && zoom) {
+      const st = zoom.start;
+      const en = zoom.end;
+      if (st <= en) {
+        const lo = data[st]?.[xDataKey];
+        const hi = data[en]?.[xDataKey];
+        if (typeof lo === "number" && typeof hi === "number" && lo <= hi) {
+          return [lo, hi];
+        }
+      }
+    }
+    return zoomedDomain ?? (defaultXDomain as Domain);
+  }, [interactionMode, zoom, data, xDataKey, zoomedDomain, defaultXDomain]);
 
   /** true cuando hay un zoom aplicado ( guía botones de pan/reset).
    *  - modo "drag": zoomedDomain !== null (igual que antes).
@@ -311,23 +344,32 @@ export function ChartExpandDialog({
     setZoomedDomain([newLo, newHi]);
   };
 
-  /** Extrae el valor X del evento de Recharts (compatible numérico y categórico). */
+  /** Extrae el valor del X del evento de Recharts (compatible numérico y categórico). */
   const extractX = (e: any): DomainValue | null => {
-    // activeLabel = String para eje categórico (timeline). activeCoordinate.x = pixel.
-    // Para numérico, Recharts expone activeLabel como String del valor. Preferimos
-    // activeCoordinate.x que es el pixel, pero necesitamos el valor del dominio, no el
-    // pixel. Recharts usa `e.activePayload[0].payload[xDataKey]` o `e.activeLabel`.
     if (!e) return null;
+    // NUEVO — vía principal en scatter: para tooltipEventType "item" (ScatterChart),
+    // Recharts calcula xValue = xScale.invert(chartX): la posición REAL del cursor
+    // sobre el eje X (no el punto de datos más cercano). Sin esto, el drag no
+    // arranca cuando el cursor pasa por zonas vacías del scatter (sin puntos debajo).
+    // demo: node_modules/recharts/es6/chart/generateCategoricalChart.js getMouseInfo()
+    if (typeof e.xValue === "number") {
+      // Si los datos del eje son numéricos, xValue ES el valor del eje bajo
+      // el cursor (Recharts: xScale.invert(chartX)) → usarlo directo, incluso
+      // si defaultXDomain es ["auto","auto"] (Eficiencia).
+      const first = data[0]?.[xDataKey];
+      if (typeof first === "number") return e.xValue;
+      // Categórico (timeline): xValue cae como índice de categoría (fallback).
+      const cat = data[Math.round(e.xValue)]?.[xDataKey];
+      if (typeof cat === "string") return cat;
+    }
     // Categórico (timeline): activeLabel es la categoría String (ej. "2023-Q1")
     if (typeof e.activeLabel === "string") return e.activeLabel;
-    // Numérico: activeLabel puede ser el valor como string
+    // Backward-compat numérico: valor del punto activo más cercano al cursor.
     const p = e.activePayload?.[0]?.payload;
     if (p && p[xDataKey] !== undefined) {
       const v = p[xDataKey];
       if (typeof v === "number" || typeof v === "string") return v as DomainValue;
     }
-    // Fallback: activeCoordinate.x convertido a valor del dominio no es trivial,
-    // así que si llegamos aquí, ignoramos
     return null;
   };
 
@@ -461,6 +503,13 @@ export function ChartExpandDialog({
       activeProviders,
       onToggleProvider: onToggle,
       isZoomed,
+      // allowDataOverflow solo con zoom numérico activo: sin zoom Recharts
+      // puede seguir expandiendo "auto" o el dominio por defecto libremente.
+      // En modo "brush" también: cuando el Brush define un rango [lo,hi] real,
+      // permitir overflow = RESPETAR ese dominio y cortar los puntos de afuera
+      // (sin esto parseSpecifiedDomain expande de vuelta al set completo y el
+      // "zoom" del slider no se ve — mismo bug del drag).
+      allowXOverflow: isZoomed && isNumericDomain(currentDomain),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [

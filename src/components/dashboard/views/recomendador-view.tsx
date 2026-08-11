@@ -134,6 +134,8 @@ export function RecomendadorView() {
     });
   }, [data, submittedQuery, operationMode, currency]);
 
+  const [activeCategory, setActiveCategory] = useState<TaskCategory | null>(null);
+
   // Sync the active category chip with the engine's classified intent —
   // when the user types a query, highlight the chip matching the winner.
   useEffect(() => {
@@ -154,7 +156,6 @@ export function RecomendadorView() {
   // Direct category click — runs the engine with a canonical query that
   // maps to the selected category. This lets users get recommendations
   // without typing, just by picking what they want to do.
-  const [activeCategory, setActiveCategory] = useState<TaskCategory | null>(null);
   const handleCategoryClick = (cat: TaskCategory) => {
     const canonical = CATEGORY_CANONICAL_QUERIES[cat];
     setActiveCategory(cat);

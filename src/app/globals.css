@@ -598,3 +598,26 @@
 .hide-col-speedAvg th.col-speedAvg, .hide-col-speedAvg td.col-speedAvg { display: none !important; }
 .hide-col-dlAvg th.col-dlAvg, .hide-col-dlAvg td.col-dlAvg { display: none !important; }
 .hide-col-likesAvg th.col-likesAvg, .hide-col-likesAvg td.col-likesAvg { display: none !important; }
+
+/* Custom fluid CSS animations for Recharts elements (replaces JS physics animations) */
+@keyframes recharts-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes recharts-scale-in {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.recharts-bar-rectangle path,
+.recharts-polygon {
+  animation: recharts-fade-up 0.6s var(--ease-out-expo) backwards;
+  transform-origin: bottom;
+}
+
+.recharts-scatter-symbol path {
+  animation: recharts-scale-in 0.5s var(--ease-out-expo) backwards;
+  transform-origin: center;
+  transform-box: fill-box;
+}

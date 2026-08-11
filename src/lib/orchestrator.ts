@@ -1768,19 +1768,19 @@ function applyOpenRouterEnrichment(
   //   - Este solo trae lanzamientos recientes de OR que AA aún no lista
   //
   // Reglas (no mezcla datos, no pisa, no duplica — mismas garantías):
-  //   1. Solo OR models con created dentro de la ventana (default 30 días)
+  //   1. Solo OR models con created dentro de la ventana (default 90 días)
   //   2. No alias (alias_target == null)
   //   3. No variante de esfuerzo (low/medium/high/max/xhigh/minimal)
   //   4. GATE: requiere II de AA embebido en OR (misma regla que upsert global)
   //   5. No reclamado por un modelo AA existente (claimedOrIds)
   //   6. No duplica ningún modelo ya en pool (namesMatch fuzzy)
   //   7. Dedup por or.id (modelsMap indexa el mismo modelo 3 veces)
-  //   8. La ventana es configurable vía env OR_RECENT_DAYS (default 30)
+  //   8. La ventana es configurable vía env OR_RECENT_DAYS (default 90)
   // ============================================================
   {
     const RECENT_CREATED_DAYS = (() => {
-      const raw = Number(process.env.OR_RECENT_DAYS ?? "30");
-      return Number.isFinite(raw) && raw > 0 ? raw : 30;
+      const raw = Number(process.env.OR_RECENT_DAYS ?? "90");
+      return Number.isFinite(raw) && raw > 0 ? raw : 90;
     })();
     const EFFORT_RE_NEWS = /\((high|low|max|xhigh|minimal|medium)\)/i;
     const seenNewsIds = new Set<string>();

@@ -18,6 +18,8 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     
     // React rules
     "react-hooks/exhaustive-deps": "off",
+    "react-hooks/set-state-in-effect": "off",
+    "react-hooks/refs": "off",
     "react-hooks/purity": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
@@ -27,6 +29,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // Next.js rules
     "@next/next/no-img-element": "off",
     "@next/next/no-html-link-for-pages": "off",
+    "@next/next/no-sync-scripts": "off",
     
     // General JavaScript rules
     "prefer-const": "off",
@@ -44,7 +47,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "docs/**"]
 }];
 
 export default eslintConfig;

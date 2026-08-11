@@ -54,7 +54,7 @@ import { OperarioView } from "./operario-view";
 import { CalculadoraView } from "./calculadora-view";
 import { SaludView } from "./salud-view";
 import { GerenteView } from "./gerente-view";
-import { AnalyticsView, ScatterProviderLegend } from "./analytics-view";
+import { AnalyticsView, ScatterProviderLegend, makeScatterShape } from "./analytics-view";
 import { ChartExpandDialog } from "../charts/chart-expand-dialog";
 import { FichaTecnicaModal } from "../ficha-tecnica-modal";
 import { prefetchFichaForModel } from "../ficha-tecnica/hf-cache";
@@ -185,6 +185,22 @@ function IngenieroOverview() {
       .sort((a, b) => b.rawDownloads - a.rawDownloads)
       .slice(0, 80);
   }, [data]);
+
+  /**
+   * Variantes ORDENADAS por X para los modales con <Brush> (mismo motivo que
+   * brushSpeedData en analytics): el Brush recorta por índice ordinal, y con
+   * los datos ordenados un slice de índices ES un rango contiguo de valor del
+   * eje; el ChartExpandDialog traduce los índices a valores reales y
+   * allowDataOverflow=true corta los puntos fuera del rango.
+   */
+  const brushScatterData = useMemo(
+    () => [...scatterData].sort((a, b) => a.x - b.x),
+    [scatterData]
+  );
+  const brushAdoptionData = useMemo(
+    () => [...adoptionData].sort((a, b) => a.x - b.x),
+    [adoptionData]
+  );
 
   const eloData = useMemo(() => {
     if (!data) return [];
@@ -847,15 +863,17 @@ function IngenieroOverview() {
           title="Inteligencia vs Precio"
           subtitle="Cada punto = modelo · X = precio USD/M (log) · Y = inteligencia · tamaño = velocidad (tok/s) · click en un punto abre la ficha técnica"
           chartId="inteligencia-vs-precio"
-          data={scatterData}
+          data={brushScatterData}
           models={data.models}
-          defaultXDomain={[-2, 2.5]}
+          defaultXDomain={["auto", "auto"]}
           xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          interactionMode="brush"
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              data={brushScatterData}
               onMouseDown={ctx.onMouseDown}
               onMouseMove={ctx.onMouseMove}
               onMouseUp={ctx.onMouseUp}
@@ -866,6 +884,7 @@ function IngenieroOverview() {
                 dataKey="x"
                 name="Precio USD/M (log10)"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowXOverflow}
                 ticks={[-2, -1, 0, 1, 2]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -914,27 +933,17 @@ function IngenieroOverview() {
                   );
                 }}
               />
-              <Scatter data={scatterData} isAnimationActive={false}>
-                {scatterData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    fillOpacity={getPointOpacity(entry.provider)}
-                    stroke={entry.color}
-                    strokeOpacity={getPointOpacity(entry.provider)}
-                    strokeWidth={1}
-                    onClick={() => ctx.onToggleProvider(entry.provider)}
-                    onDoubleClick={() => ctx.onPointClick(entry.id)}
-                    onMouseEnter={() => {
-                      const m =
-                        data.models.find((mm) => mm.id === entry.id) ?? null;
-                      prefetchFichaForModel(m);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Scatter>
-              {ctx.refArea}
+              <Scatter isAnimationActive={false} shape={makeScatterShape(getPointOpacity) as any}
+                onClick={(pt: any) => ctx.onToggleProvider(pt?.payload?.provider ?? pt?.provider)}
+                onDoubleClick={(pt: any) => ctx.onPointClick(pt?.payload?.id ?? pt?.id)}
+                onMouseEnter={(pt: any) => {
+                  const id = pt?.payload?.id ?? pt?.id;
+                  const m = id ? (data.models.find((mm) => mm.id === id) ?? null) : null;
+                  prefetchFichaForModel(m);
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              {ctx.brush}
             </ScatterChart>
           )}
         />
@@ -949,15 +958,17 @@ function IngenieroOverview() {
           title="Adopción vs Calidad"
           subtitle="X = descargas HF (log) · Y = Intelligence Index · tamaño = likes HF · click en un punto abre la ficha técnica"
           chartId="adopcion-vs-calidad"
-          data={adoptionData}
+          data={brushAdoptionData}
           models={data.models}
-          defaultXDomain={[2, 7]}
+          defaultXDomain={["auto", "auto"]}
           xDataKey="x"
           activeProviders={activeProviders}
           onToggle={toggleProvider}
+          interactionMode="brush"
           renderChart={(ctx) => (
             <ScatterChart
               margin={{ top: 10, right: 16, bottom: 24, left: 8 }}
+              data={brushAdoptionData}
               onMouseDown={ctx.onMouseDown}
               onMouseMove={ctx.onMouseMove}
               onMouseUp={ctx.onMouseUp}
@@ -968,6 +979,7 @@ function IngenieroOverview() {
                 dataKey="x"
                 name="Downloads (log10)"
                 domain={ctx.xDomain}
+                allowDataOverflow={ctx.allowXOverflow}
                 ticks={[2, 3, 4, 5, 6, 7]}
                 tick={{ fill: "var(--text-secondary)", fontSize: 11 }}
                 tickLine={false}
@@ -1008,27 +1020,17 @@ function IngenieroOverview() {
                   );
                 }}
               />
-              <Scatter data={adoptionData} isAnimationActive={false}>
-                {adoptionData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.color}
-                    fillOpacity={getPointOpacity(entry.provider)}
-                    stroke={entry.color}
-                    strokeOpacity={getPointOpacity(entry.provider)}
-                    strokeWidth={1}
-                    onClick={() => ctx.onToggleProvider(entry.provider)}
-                    onDoubleClick={() => ctx.onPointClick(entry.id)}
-                    onMouseEnter={() => {
-                      const m =
-                        data.models.find((mm) => mm.id === entry.id) ?? null;
-                      prefetchFichaForModel(m);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                ))}
-              </Scatter>
-              {ctx.refArea}
+              <Scatter isAnimationActive={false} shape={makeScatterShape(getPointOpacity) as any}
+                onClick={(pt: any) => ctx.onToggleProvider(pt?.payload?.provider ?? pt?.provider)}
+                onDoubleClick={(pt: any) => ctx.onPointClick(pt?.payload?.id ?? pt?.id)}
+                onMouseEnter={(pt: any) => {
+                  const id = pt?.payload?.id ?? pt?.id;
+                  const m = id ? (data.models.find((mm) => mm.id === id) ?? null) : null;
+                  prefetchFichaForModel(m);
+                }}
+                style={{ cursor: "pointer" }}
+              />
+              {ctx.brush}
             </ScatterChart>
           )}
         />
