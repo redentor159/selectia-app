@@ -101,10 +101,7 @@ export default function RootLayout({
           {children}
           <Toaster />
         </QueryProvider>
-      {/* impeccable-live-start */}
-<script src="http://localhost:8400/live.js?token=eb20fac7-6362-4b31-a670-123b03366646"></script>
-{/* impeccable-live-end */}
-</body>
+      </body>
     </html>
   );
 }
