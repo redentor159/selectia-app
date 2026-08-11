@@ -2,19 +2,19 @@
 
 > **Command Center de Modelos de IA para MYPEs latinoamericanas**
 >
-> Compara 206+ modelos de IA desde 13 fuentes en tiempo real. Motor de recomendación HRE-TOPSIS (8 criterios), 21 monedas de América, glosario de 176 términos. Open source (MIT).
+> Compara modelos de IA en tiempo real con un motor de recomendación HRE-TOPSIS (8 criterios, 5 capas) que corre 100% en el navegador. 9 fuentes de datos en vivo, 21 monedas, glosario técnico de 174 términos. Open source (MIT).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
-[![Lint](https://img.shields.io/badge/Lint-0%20errors-green)](https://eslint.org/)
-[![JSON](https://img.shields.io/badge/JSON-376%20KB-green)](https://github.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.2-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb)](https://react.dev/)
+[![Deploy](https://img.shields.io/badge/Deploy-Vercel-black)](https://vercel.com)
 
 ---
 
-## 📸 Vista previa
+## 🚀 Demo en vivo
 
-![SelectIA Dashboard](docs/screenshots/01-resumen.png)
+**https://selectia.vercel.app** — app desplegada con datos reales en vivo.
 
 ---
 
@@ -22,12 +22,12 @@
 
 | Feature | Descripción |
 |---|---|
-| 🔍 **Motor HRE-TOPSIS** | 8 criterios (precio, II, coding, agentic, speed, context, elo, reliability), AHP con CR < 0.1, piso de calidad en modo Calidad |
-| 📊 **13 fuentes de datos** | Artificial Analysis, BenchLM, ZeroEval, Arena AI, LiteLLM, HuggingFace Hub, OpenRouter, + 6 más |
-| 💱 **21 monedas de América** | PEN, USD, BRL, MXN, COP, CLP, ARS, CAD + 13 más, con tipo de cambio personalizable |
-| 📚 **Glosario técnico** | 176 términos intercorrelacionados, 15 deepDives expandibles, 8 categorías |
+| 🔍 **Motor HRE-TOPSIS** | 8 criterios (precio, II, coding, agentic, speed, context, elo, reliability), AHP con CR < 0.1, piso de calidad en modo Calidad. 100% client-side, <100 ms |
+| 📊 **9 fuentes de datos** | Artificial Analysis, LiteLLM, Arena AI, Open ER-API, HuggingFace Hub, OpenRouter, Models.dev, BenchLM, ZeroEval |
+| 💱 **21 monedas** | 19 de América (PEN, USD, BRL, MXN, COP, CLP, ARS, UYU, PYG, BOB, VES, GTQ, HNL, NIO, CRC, PAB, DOP, CUP, CAD) + EUR y GBP, con tipo de cambio personalizable |
+| 📚 **Glosario técnico** | 174 términos intercorrelacionados, 15 deepDives expandibles, 8 categorías |
 | 🎬 **Animación del motor** | 36 pasos educativos, Modo Traza con badges de proveniencia por métrica |
-| 📋 **Ficha Técnica** | BenchLM (8 categorías), ZeroEval (failure rate, P95, throughput), Ciclo de Vida (Función K) |
+| 📋 **Ficha Técnica** | BenchLM (8 categorías), ZeroEval (failure rate, P95, throughput, total calls), Ciclo de Vida (Función K) |
 | 🏭 **Nicho industrial** | CNC, G-code, metalmecánica, SUNAT, MYPE, equivalencias (almuerzos, cafés) |
 | 🌙 **4 temas** | Linear Claro, Linear Oscuro, Blanco Puro, Negro Puro |
 
@@ -37,7 +37,7 @@
 
 ```mermaid
 flowchart TB
-    subgraph "13 APIs Externas"
+    subgraph "9 APIs Externas"
         AA[Artificial Analysis]
         BL[BenchLM]
         ZE[ZeroEval]
@@ -45,13 +45,14 @@ flowchart TB
         LT[LiteLLM]
         HF[HuggingFace Hub]
         ER[Open ER-API]
-        OT[+6 fuentes más]
+        OR[OpenRouter]
+        MD[Models.dev]
     end
 
     subgraph "Server — orchestrator.ts"
-        OR[Orchestrador<br/>2,278 líneas]
+        ORC[Orchestrador<br/>2,909 líneas]
         ZV[Validaciones Zod<br/>6 schemas]
-        EN[Engine HRE-TOPSIS<br/>2,039 líneas]
+        EN[Engine HRE-TOPSIS<br/>2,104 líneas]
     end
 
     subgraph "API cacheada"
@@ -59,13 +60,13 @@ flowchart TB
     end
 
     subgraph "Client — Browser"
-        UI[Next.js 16 App<br/>111 archivos · 31K líneas]
+        UI[Next.js 16 App<br/>101 archivos · 32K líneas]
         ST[Zustand Store<br/>localStorage persistente]
-        GL[Glosario<br/>176 términos]
+        GL[Glosario<br/>174 términos]
     end
 
-    AA & BL & ZE & AR & LT & HF & ER & OT --> OR
-    OR --> ZV --> EN --> JSON
+    AA & BL & ZE & AR & LT & HF & ER & OR & MD --> ORC
+    ORC --> ZV --> EN --> JSON
     JSON --> UI
     UI --> ST
     UI --> GL
@@ -81,30 +82,33 @@ flowchart LR
     C4 --> C5["Capa 5<br/>Razones<br/>+ Explicación"]
 ```
 
-| Capa | Función | Tiempo |
-|---|---|---|
-| 1 — TF-IDF | Clasifica la consulta en 8 categorías usando stemming Porter + stopwords | ~1ms |
-| 2 — Filtros | Excluye research-only, HF disabled, MYPE ceiling $1/M, piso II ≥ 30 en Calidad | ~0ms |
-| 3 — AHP | Selecciona 1 de 24 vectores de pesos (3 modos × 8 categorías), verifica CR < 0.1 | ~0ms |
-| 4 — TOPSIS | Normalización vectorial, matriz ponderada, distancia euclidiana, coeficiente C | ~2ms |
-| 5 — Explicación | Genera razones en español citando AA, BenchLM, ZeroEval, Arena AI | ~1ms |
+| Capa | Función |
+|---|---|
+| 1 — TF-IDF | Clasifica la consulta en 8 categorías usando stemming Porter + stopwords |
+| 2 — Filtros | Excluye research-only, HF disabled, MYPE ceiling $1/M, piso II ≥ 30 en Calidad |
+| 3 — AHP | Selecciona 1 de 24 vectores de pesos (3 modos × 8 categorías), verifica CR < 0.1 |
+| 4 — TOPSIS | Normalización vectorial, matriz ponderada, distancia euclidiana, coeficiente C |
+| 5 — Explicación | Genera razones en español citando las fuentes de cada métrica |
 
-**Total: <10ms por recomendación**
+**Total: <100 ms por recomendación, 100% en el navegador del cliente.**
 
 ---
 
 ## 📊 Datos en tiempo real
 
-| Fuente | Endpoint | Datos | Modelos |
-|---|---|---|---|
-| Artificial Analysis | `artificialanalysis.ai/api/v2/...` | II, coding, agentic, speed, TTFT, precios | 206 |
-| BenchLM | `benchlm.ai/data/models.json` | 8 category scores, displayScore, rank, Función K | 87 |
-| ZeroEval | `api.zeroeval.com/v1/models/metrics` | failure_rate, P95, throughput, total_calls | 36 |
-| Arena AI | `api.wulong.dev/...` | Elo, Elo CI, votos | 30 |
-| LiteLLM | `raw.githubusercontent.com/BerriAI/...` | Precios, context window (max_input_tokens) | 219 |
-| HuggingFace Hub | `huggingface.co/api/models/...` | Downloads, likes, safetensors, spaces, gated | 65 |
-| Open ER-API | `open.er-api.com/v6/latest/USD` | 21 monedas de América | — |
-| + 6 más | Groq, OpenRouter, Models.dev, Helicone, Aider, Ollama | Health checks, status | — |
+| Fuente | Qué provee |
+|---|---|
+| Artificial Analysis | Índice de inteligencia, coding, agentic, velocidad, TTFT, precios |
+| LiteLLM | Precios y context window (max_input_tokens) |
+| Arena AI | Elo, Elo CI, votos |
+| Open ER-API | Tipo de cambio de 21 monedas |
+| HuggingFace Hub | Downloads, likes, safetensors, spaces, gated |
+| OpenRouter | Catálogo de modelos y precios |
+| Models.dev | Catálogo de proveedores |
+| BenchLM | 8 category scores, displayScore, rank, Función K |
+| ZeroEval | failure_rate, P95, throughput, total_calls |
+
+> Los catálogos se enriquecen en runtime con los datos en vivo de las fuentes (conteo de modelos variable según disponibilidad). El seed local curado de `src/lib/data/models.ts` (24 modelos) sirve como respaldo offline.
 
 ---
 
@@ -112,8 +116,8 @@ flowchart LR
 
 ```bash
 # 1. Clonar
-git clone https://github.com/TU_USUARIO/selectia.git
-cd selectia
+git clone https://github.com/redentor159/selectia-app.git
+cd selectia-app
 
 # 2. Instalar dependencias
 bun install
@@ -131,11 +135,14 @@ bun run dev
 
 ### Variables de entorno
 
-| Variable | Descripción | Default |
-|---|---|---|
-| `AA_API_KEY` | Artificial Analysis API key | Fallback incluido |
-| `HF_TOKEN` | HuggingFace token | Fallback incluido |
-| `NTFY_TOPIC` | ntfy.sh topic para alertas | `selectia-alerts` |
+| Variable | Descripción |
+|---|---|
+| `AA_API_KEY` | Artificial Analysis API key (fallback incluido) |
+| `HF_TOKEN` | HuggingFace token (fallback incluido) |
+| `METALS_DEV_KEY` | Metals.dev API key |
+| `ENABLE_OR_UPSERT` | Habilita upsert de modelos OpenRouter con II (default: off) |
+| `NTFY_TOPIC` | ntfy.sh topic para alertas |
+| `DATABASE_URL` | Conexión a base de datos (no usada en runtime) |
 
 ---
 
@@ -149,7 +156,7 @@ flowchart LR
     D --> E["5. selectia.vercel.app ✅"]
 ```
 
-Ver [DEPLOYMENT.md](docs/DEPLOYMENT.md) para guía detallada.
+El `vercel.json` configura regiones `sfo1` y un cron diario (07:00 UTC) para actualizar el catálogo.
 
 ---
 
@@ -162,40 +169,32 @@ selectia/
 │   │   ├── page.tsx              # Página principal (1 sola ruta)
 │   │   ├── layout.tsx            # Layout con metadata, fonts, providers
 │   │   ├── privacy/page.tsx      # Privacy Policy
-│   │   └── terms/page.tsx        # Terms of Service
+│   │   ├── terms/page.tsx        # Terms of Service
+│   │   ├── sitemap.ts            # Sitemap
+│   │   └── api/
+│   │       └── health/route.ts   # Health check del sistema
 │   ├── lib/
-│   │   ├── types.ts              # 381 líneas — TypeScript types
-│   │   ├── orchestrator.ts       # 2,278 líneas — 13 fetchers + merge
+│   │   ├── types.ts              # 503 líneas — TypeScript types
+│   │   ├── orchestrator.ts       # 2,909 líneas — 9 fetchers + merge
 │   │   ├── validations.ts        # 199 líneas — Zod schemas
 │   │   ├── format.ts             # Formateo de precios, fechas, colores
 │   │   ├── equivalences.ts       # Almuerzos, cafés, pintas
 │   │   └── data/
-│   │       ├── models.ts         # Seed data + CURRENCIES (21 monedas)
-│   │       └── glossary.ts       # 176 términos, 15 deepDives
+│   │       ├── models.ts         # Seed data (24 modelos) + CURRENCIES (21 monedas)
+│   │       ├── glossary.ts       # 174 términos, 15 deepDives
+│   │       └── engine-docs.ts    # Documentación interna del motor
 │   ├── engine/
-│   │   ├── hre-topsis.ts         # 2,039 líneas — Motor 8 criterios
+│   │   ├── hre-topsis.ts         # 2,104 líneas — Motor 8 criterios
 │   │   ├── ahp-verification.ts   # Consistency Ratio (Saaty)
 │   │   └── sensitivity-analysis.ts
 │   ├── components/
 │   │   ├── dashboard/
-│   │   │   ├── header.tsx        # Profile, moneda, tema, modo
-│   │   │   ├── sidebar.tsx       # Navegación 12 vistas
+│   │   │   ├── header.tsx        # Perfil, moneda, tema, modo
+│   │   │   ├── sidebar.tsx       # Navegación 11 vistas
 │   │   │   ├── footer.tsx        # Sticky footer
-│   │   │   ├── ficha-tecnica-modal.tsx  # BenchLM + ZeroEval + Ciclo Vida
+│   │   │   ├── ficha-tecnica/    # BenchLM + ZeroEval + Ciclo de Vida
 │   │   │   ├── glossary-dialog.tsx     # Glosario con deepDive
-│   │   │   └── views/
-│   │   │       ├── overview-view.tsx       # Resumen
-│   │   │       ├── recomendador-view.tsx   # Recomendador
-│   │   │       ├── tabla-view.tsx          # Tabla Maestra (23 columnas)
-│   │   │       ├── comparador-view.tsx     # Comparador
-│   │   │       ├── analytics-view.tsx      # Analytics
-│   │   │       ├── simulador-roi-view.tsx  # Simulador ROI
-│   │   │       ├── calculadora-view.tsx    # Calculadora de tokens
-│   │   │       ├── calculadora-hardware-view.tsx  # Hardware local
-│   │   │       ├── salud-view.tsx          # 13 fuentes + Función L
-│   │   │       ├── engine-animation-view.tsx     # Animación 36 pasos
-│   │   │       ├── guia-decision-view.tsx  # Guía de tiers
-│   │   │       └── ...                     # + 6 vistas más
+│   │   │   └── views/            # 16 vistas (11 activas + perfil + dead code)
 │   │   └── ui/                   # shadcn/ui (New York style)
 │   ├── store/
 │   │   └── dashboard-store.ts    # Zustand + persist (localStorage)
@@ -203,56 +202,59 @@ selectia/
 │       ├── use-dashboard-data.ts            # TanStack Query
 │       └── use-effective-dashboard-data.ts  # Custom TC override
 ├── public/
-│   ├── favicon-scale.svg
+│   ├── logo.svg
+│   ├── favicon-*.svg
 │   └── robots.txt
 ├── scripts/
 │   └── generate-static-json.ts   # DEV-ONLY — inspección local (no se sirve)
-├── prisma/
-│   └── schema.prisma             # SQLite (no usado en runtime)
 ├── LICENSE                       # MIT
 ├── .env.example
 ├── vercel.json
 └── package.json
 ```
 
+### Vistas del dashboard (11 navegables)
+
+Resumen · Recomendador · Tabla Maestra · Comparador · Analytics · Simulador ROI · Calculadora · Hardware IA · QR Generator · Salud del Sistema · Animación del Motor
+
 ---
 
 ## 🔧 Tech Stack
 
-| Categoría | Tecnología | Versión |
+| Categoría | Tecnología | Versión instalada |
 |---|---|---|
-| Framework | Next.js (App Router, Turbopack) | 16.1.3 |
-| Lenguaje | TypeScript | 5.x |
-| Styling | Tailwind CSS | 4.x |
-| UI Components | shadcn/ui (New York) | — |
+| Framework | Next.js (App Router, Turbopack) | 16.2.12 |
+| Lenguaje | TypeScript | 5.9.3 |
+| Styling | Tailwind CSS | 4.3.3 |
+| UI Components | shadcn/ui (New York) + Radix UI | — |
 | Icons | Lucide React | — |
 | Charts | Recharts | — |
-| State | Zustand + persist | 5.x |
-| Server State | TanStack Query | 5.x |
-| Validation | Zod | 4.0.2 |
+| State | Zustand + persist | 5.0.14 |
+| Server State | TanStack Query | 5.101.4 |
+| Tables | TanStack Table | 8.21.3 |
+| Validation | Zod | 4.4.3 |
 | Runtime | Bun | 1.3.x |
 | Deploy | Vercel | — |
 
 ---
 
-## 📈 Métricas del proyecto
+## 📈 Métricas del proyecto (verificadas en el código, v3.3.1)
 
 | Métrica | Valor |
 |---|---|
-| Líneas de código (src/) | 31,116 |
-| Archivos TypeScript | 111 |
-| Modelos de IA | 206 |
-| Fuentes de datos | 13 |
+| Líneas de código (src/) | 32,289 |
+| Archivos TypeScript (.ts/.tsx) | 101 |
+| Modelos en seed local | 24 |
+| Fuentes de datos en vivo | 9 |
 | Monedas soportadas | 21 |
-| Términos en glosario | 176 |
+| Términos en glosario | 174 |
 | DeepDives en glosario | 15 |
 | Pasos en animación | 36 |
 | Criterios TOPSIS | 8 |
 | Vectores de pesos AHP | 24 (3 modos × 8 categorías) |
-| JSON maestro | 376 KB |
-| Latencia recomendación | < 10ms |
-| Lint errors | 0 |
-| TSC errors | 0 |
+| Capas del motor | 5 |
+| Latencia de recomendación | < 100 ms (100% client-side) |
+| Categorías BenchLM | 8 |
 
 ---
 
@@ -262,14 +264,20 @@ MIT — úsalo libremente, incluyendo uso comercial.
 
 ---
 
-## 🤝 Contribuir
+## 📚 Documentación
 
-Ver [CONTRIBUTING.md](https://github.com/redentor159/selectia-app/blob/master/docs/CONTRIBUTING.md).
+- [Arquitectura](docs/ARCHITECTURE.md)
+- [API Reference](docs/API_REFERENCE.md)
+- [FAQ](docs/FAQ_SELECTIA.md)
+- [Comparativa de competidores](docs/COMPARATIVA_COMPETIDORES.md)
+- [Known Issues](docs/KNOWN_ISSUES.md)
+- [Master](docs/MASTER.md)
 
 ---
 
 ## 🔗 Links
 
 - **Live Demo:** [selectia.vercel.app](https://selectia.vercel.app)
+- **Repo:** [github.com/redentor159/selectia-app](https://github.com/redentor159/selectia-app)
 - **Privacy Policy:** [/privacy](https://selectia.vercel.app/privacy)
 - **Terms of Service:** [/terms](https://selectia.vercel.app/terms)
