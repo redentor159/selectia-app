@@ -12,9 +12,19 @@
 
 ---
 
-## 🚀 Demo en vivo
+## 🎯 El problema
 
-**https://selectia-app.vercel.app** — app desplegada con datos reales en vivo.
+Elegir un modelo de IA no debería ser una tarea de especialistas. Las MYPEs latinoamericanas — metalmecánica, manufactura, comercio — se enfrentan a más de 250 modelos de IA con precios en dólares, benchmarks dispersos en decenas de sitios y condiciones que cambian cada semana. Sin datos claros, cualquier decisión es una apuesta.
+
+SelectIA centraliza 9 fuentes de datos en vivo en un solo dashboard, aplica un motor de decisión multicriterio (HRE-TOPSIS, 8 criterios) y responde la pregunta real de un negocio: **"¿qué modelo me conviene para esta tarea y este presupuesto?"** — en español, en soles, y en menos de 100 ms, 100% en el navegador.
+
+---
+
+## 📸 Vista previa
+
+![SelectIA Dashboard](docs/screenshots/01-resumen.png)
+
+→ **Demo en vivo:** [selectia-app.vercel.app](https://selectia-app.vercel.app)
 
 ---
 

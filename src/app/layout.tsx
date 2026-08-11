@@ -19,7 +19,7 @@ export const firaCode = Fira_Code({
 export const metadata: Metadata = {
   title: "SelectIA — Command Center de Modelos IA",
   description:
-    "Compara 219+ modelos de IA desde 13 fuentes en tiempo real. Motor HRE-TOPSIS (8 criterios), 21 monedas de América, glosario de 176 términos. Open source.",
+    "Compara 275+ modelos de IA desde 9 fuentes en tiempo real. Motor HRE-TOPSIS (8 criterios), 21 monedas, glosario de 174 términos. Open source.",
   keywords: [
     "IA",
     "modelos de IA",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     icon: "/favicon-scale.svg",
     apple: "/favicon-scale.svg",
   },
-  metadataBase: new URL("https://selectia.vercel.app"),
+  metadataBase: new URL("https://selectia-app.vercel.app"),
   openGraph: {
     title: "SelectIA — Command Center de Modelos IA",
     description:
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SelectIA — Command Center de Modelos IA",
     description:
-      "Compara 200+ modelos de IA en español y en Soles. Motor HRE-TOPSIS, multi-moneda, 6 perfiles.",
+      "Compara 275+ modelos de IA en español y en Soles. Motor HRE-TOPSIS, multi-moneda, análisis por perfil.",
   },
   robots: {
     index: true,
