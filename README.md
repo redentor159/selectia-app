@@ -264,7 +264,7 @@ MIT — úsalo libremente, incluyendo uso comercial.
 
 ## 🤝 Contribuir
 
-Ver [CONTRIBUTING.md](docs/CONTRIBUTING.md).
+Ver [CONTRIBUTING.md](https://github.com/redentor159/selectia-app/blob/master/docs/CONTRIBUTING.md).
 
 ---
 
