@@ -14,7 +14,7 @@
 
 ## 🚀 Demo en vivo
 
-**https://selectia.vercel.app** — app desplegada con datos reales en vivo.
+**https://selectia-app.vercel.app** — app desplegada con datos reales en vivo.
 
 ---
 
@@ -153,7 +153,7 @@ flowchart LR
     A["1. Push a GitHub"] --> B["2. Vercel import repo"]
     B --> C["3. Configurar env vars"]
     C --> D["4. Deploy automático"]
-    D --> E["5. selectia.vercel.app ✅"]
+    D --> E["5. selectia-app.vercel.app ✅"]
 ```
 
 El `vercel.json` configura regiones `sfo1` y un cron diario (07:00 UTC) para actualizar el catálogo.
@@ -277,7 +277,7 @@ MIT — úsalo libremente, incluyendo uso comercial.
 
 ## 🔗 Links
 
-- **Live Demo:** [selectia.vercel.app](https://selectia.vercel.app)
+- **Live Demo:** [selectia-app.vercel.app](https://selectia-app.vercel.app)
 - **Repo:** [github.com/redentor159/selectia-app](https://github.com/redentor159/selectia-app)
-- **Privacy Policy:** [/privacy](https://selectia.vercel.app/privacy)
-- **Terms of Service:** [/terms](https://selectia.vercel.app/terms)
+- **Privacy Policy:** [/privacy](https://selectia-app.vercel.app/privacy)
+- **Terms of Service:** [/terms](https://selectia-app.vercel.app/terms)
